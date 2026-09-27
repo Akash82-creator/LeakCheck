@@ -51,3 +51,43 @@ path for non-experts, per the Cypherpunk criteria). No rule changes.**
   requirements (the only network use); later runs start straight away.
 - The package-source URL test now allows exactly one URL: the local page's own
   loopback address, which is needed to open the browser.
+
+## 2026-09-27: audit against Sparrow 2.2.3's own PSBTs
+**Reason: correctness and robustness bugs found by testing PSBTs built by
+Sparrow's code and by fuzzing them. No rule semantics changed.**
+
+Bugs fixed:
+- **Unchecked UTXO copy used for values.** When a segwit input carries both
+  `non_witness_utxo` and `witness_utxo` (Sparrow always sends both), the
+  previous tx was hash-checked but the values were read from `witness_utxo`
+  (embit's `utxo` prefers it), which nothing checked. Now the checked
+  previous-tx output is used, and a disagreeing `witness_utxo` is rejected
+  (`utxo_mismatch`).
+- **Crash when the spent output doesn't exist** in the included previous tx
+  (`IndexError`). Now `utxo_mismatch`.
+- **Crash on an output with no amount or script** (possible in malformed v2
+  PSBTs). Now `malformed`. Any other unexpected error while reading fields is
+  also reported as `malformed` instead of escaping.
+- **Memory exhaustion from a crafted Taproot derivation.** embit 0.8.0 (still
+  unfixed upstream) loops over an unchecked leaf-hash count, so ~670 bytes
+  could hang the tool and exhaust memory. The count is now checked before embit
+  reads the field (subclassed input/output scopes; embit still does all parsing).
+- **Server error log could have quoted a PSBT.** Any unexpected error during
+  analysis now returns a generic error and logs nothing.
+- `small-input` observation said "spent together with 0 other input(s)" when
+  every co-spent input was small. Wording only; the rule is unchanged.
+
+Wording changed at the review's request (the spec is otherwise frozen):
+- The fingerprint panel is titled "Transaction fingerprint signals" and says it
+  is unrelated to the wallet's master key fingerprint. The PSBT version moved
+  out of the "visible" table, because it is never broadcast.
+- `foreign-input` is described as evidence of another wallet fingerprint (it
+  could still be a wallet you control), not as proof of another party or of PayJoin.
+- The change-verdict card says it combines the change heuristics and is not
+  counted as a separate check (counting itself is unchanged).
+
+Correction to an earlier entry: "BIP174 finalizers strip derivation paths, so
+a finalized PSBT can never pass precedence step 3" is **not true for Sparrow**,
+which keeps them. Behavior was already right (a finalized PSBT is rejected only
+when it has no metadata); the `finalized_no_metadata` message now says "some
+wallets remove it" instead of claiming all do.

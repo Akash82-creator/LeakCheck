@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import base64
 import binascii
+from io import BytesIO
 from typing import Union
 
-from embit.psbt import PSBT
+from embit import compact
+from embit.psbt import PSBT, InputScope, OutputScope, PSBTError, read_string
 
 from .model import LeakCheckError
 
@@ -43,6 +45,67 @@ def decode(data: Union[bytes, str]) -> bytes:
     return raw
 
 
+def _checked_tap_derivation(stream) -> BytesIO:
+    """embit 0.8.0 loops over a Taproot derivation's leaf-hash count without
+    checking it against the field's length, so a few crafted bytes can exhaust
+    memory. Check the count first, then hand embit the unchanged bytes."""
+    value = read_string(stream)
+    count = compact.read_from(BytesIO(value))
+    if count * 32 > len(value):
+        raise PSBTError("Invalid number of taproot leaf hashes")
+    return BytesIO(compact.to_bytes(len(value)) + value)
+
+
+class _InputScope(InputScope):
+    def read_value(self, stream, k):
+        if k and k[0] == 0x16:                       # PSBT_IN_TAP_BIP32_DERIVATION
+            stream = _checked_tap_derivation(stream)
+        return super().read_value(stream, k)
+
+
+class _OutputScope(OutputScope):
+    def read_value(self, stream, k):
+        if k and k[0] == 0x07:                       # PSBT_OUT_TAP_BIP32_DERIVATION
+            stream = _checked_tap_derivation(stream)
+        return super().read_value(stream, k)
+
+
+class _PSBT(PSBT):
+    PSBTIN_CLS = _InputScope
+    PSBTOUT_CLS = _OutputScope
+
+
+def _utxo(i: int, inp):
+    """The coin an input spends. When the full previous transaction is
+    included, it must hash to the txid being spent, and the output it provides
+    is the one used. A witness_utxo that disagrees with it is rejected, never
+    silently preferred (embit's `utxo` property would prefer it)."""
+    if inp.non_witness_utxo is None:
+        return inp.witness_utxo
+    try:
+        inp.verify()
+    except Exception:
+        raise LeakCheckError(
+            "utxo_mismatch",
+            f"Input {i}: the included previous transaction does not match "
+            "the coin being spent. Refusing to trust its values.")
+    prev_outputs = inp.non_witness_utxo.vout
+    if not 0 <= inp.vout < len(prev_outputs):
+        raise LeakCheckError(
+            "utxo_mismatch",
+            f"Input {i} spends output {inp.vout}, which its previous transaction "
+            "doesn't have.")
+    utxo = prev_outputs[inp.vout]
+    w = inp.witness_utxo
+    if w is not None and (w.value != utxo.value or
+                          bytes(w.script_pubkey.data) != bytes(utxo.script_pubkey.data)):
+        raise LeakCheckError(
+            "utxo_mismatch",
+            f"Input {i}: the two copies of the coin being spent (witness_utxo and "
+            "the previous transaction) disagree. Refusing to trust either.")
+    return utxo
+
+
 def _derivations(scope) -> list:
     """(fingerprint_int, path_tuple) for every BIP32 and Taproot derivation."""
     out = []
@@ -56,23 +119,21 @@ def _derivations(scope) -> list:
 def extract(data: Union[bytes, str]) -> dict:
     raw = decode(data)
     try:
-        psbt = PSBT.parse(raw)
+        psbt = _PSBT.parse(raw)
     except Exception as e:  # embit raises several exception types
         raise LeakCheckError("malformed", f"Malformed PSBT: {e}") from e
+    try:
+        return _fields(psbt)
+    except LeakCheckError:
+        raise
+    except Exception as e:  # fields embit accepted but that don't make sense
+        raise LeakCheckError("malformed", f"Malformed PSBT: {type(e).__name__}") from e
 
+
+def _fields(psbt) -> dict:
     inputs = []
     for i, inp in enumerate(psbt.inputs):
-        if inp.non_witness_utxo is not None:
-            # A full previous tx is present: it must hash to the txid being
-            # spent, or the values it provides can't be trusted.
-            try:
-                inp.verify()
-            except Exception:
-                raise LeakCheckError(
-                    "utxo_mismatch",
-                    f"Input {i}: the included previous transaction does not match "
-                    "the coin being spent. Refusing to trust its values.")
-        utxo = inp.utxo
+        utxo = _utxo(i, inp)
         if utxo is None:
             raise LeakCheckError(
                 "missing_utxo",
@@ -89,7 +150,10 @@ def extract(data: Union[bytes, str]) -> dict:
         })
 
     outputs = []
-    for out in psbt.outputs:
+    for n, out in enumerate(psbt.outputs):
+        if out.value is None or out.script_pubkey is None:
+            raise LeakCheckError("malformed", f"Malformed PSBT: output {n} has no "
+                                 "amount or no script.")
         outputs.append({
             "value": int(out.value),
             "spk": bytes(out.script_pubkey.data).hex(),

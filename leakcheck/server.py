@@ -78,9 +78,15 @@ def render_app(demo: bool = False):
 def _fragment(data) -> tuple:
     try:
         report, fp = check(data)
+        return render_fragment(report, fp), 200
     except LeakCheckError as e:
         return render_error(e), 400
-    return render_fragment(report, fp), 200
+    except Exception:
+        # Never let an unexpected error reach the server's error log: its
+        # message or traceback could quote the PSBT. Nothing is logged here.
+        err = LeakCheckError("internal", "Unexpected error while checking this PSBT. "
+                             "Nothing was saved or logged.")
+        return render_error(err), 500
 
 
 def create_app(demo: bool = False) -> FastAPI:

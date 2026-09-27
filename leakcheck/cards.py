@@ -18,12 +18,13 @@ CARDS = {
         "Only this transaction is checked. Coins already linked elsewhere "
         "on-chain stay linked."),
     ("foreign-input", "favorable"): (
-        "An observer would link the other party's input(s) to your coins. That "
-        "part of the inference is false. Links among your own inputs are "
-        "unaffected: see common-input-linkage.",
+        "An observer would link these input(s) to your coins. If they belong to "
+        "another party, as in PayJoin, that part of the inference is false. Links "
+        "among your own inputs are unaffected: see common-input-linkage.",
         "Nothing to change.",
-        "This proves nothing about links among your own inputs, or about "
-        "anything outside this transaction."),
+        "A different fingerprint shows these inputs belong to another wallet, "
+        "not who owns it: it could be another wallet you control. This proves "
+        "nothing about links among your own inputs, or outside this transaction."),
     ("input-address-reuse", "warning"): (
         "An observer learns this address was funded more than once and links "
         "the coins it received.",

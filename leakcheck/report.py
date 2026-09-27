@@ -22,7 +22,7 @@ from .rules import analyze
 
 TITLES = {
     "common-input-linkage": "Your inputs are linked to each other",
-    "foreign-input": "Another party's input is in this transaction",
+    "foreign-input": "An input carries another wallet's fingerprint",
     "input-address-reuse": "An address you spend from was funded more than once",
     "sender-reuse": "An output goes back to an address you already use",
     "recipient-reuse": "A recipient address is used more than once",
@@ -90,6 +90,9 @@ def _card(f: Finding, evidence: List[Finding]) -> str:
         fixable = (f'<span class="tag {"limited" if limited else "fixable"}">'
                    f'{"Limited" if limited else "Fixable before broadcast"}</span>')
     action = _action(f.action)
+    if f.rule == "change-verdict":
+        meta.append("combined verdict of the change heuristics below; "
+                    "not counted as a separate check")
     parts = [
         f'<article class="card {e(f.kind)}" data-rule="{e(f.rule)}">',
         f'<header><span class="badge">{KIND_LABEL[f.kind]}</span>'
@@ -104,7 +107,7 @@ def _card(f: Finding, evidence: List[Finding]) -> str:
         "</dl>",
     ]
     if evidence:
-        parts.append('<div class="evidence"><h4>Evidence</h4><ul>')
+        parts.append('<div class="evidence"><h4>Evidence: the individual change heuristics</h4><ul>')
         for ev in evidence:
             extra = ""
             if ev.kind == "warning":
@@ -123,10 +126,14 @@ def _fingerprint(fp: dict) -> str:
     for n, s in enumerate(fp["sequences"]):
         rbf = " (signals RBF)" if int(s, 16) < 0xFFFFFFFE else ""
         rows.append((f"nSequence, input {n}", s + rbf))
-    rows.append(("PSBT version", f"v{fp['psbt_version']}"))
     body = "".join(f"<tr><th>{e(k)}</th><td><code>{e(v)}</code></td></tr>" for k, v in rows)
-    return ('<section class="fingerprint"><h2>Visible, not fixable in this transaction</h2>'
-            f'<table>{body}</table><p>{e(fp["note"])}</p></section>')
+    return ('<section class="fingerprint"><h2>Transaction fingerprint signals: visible, '
+            'not fixable in this transaction</h2>'
+            '<p class="muted">Fields of the transaction itself that anyone can read on-chain. '
+            "Not related to your wallet's master key fingerprint.</p>"
+            f'<table>{body}</table><p>{e(fp["note"])}</p>'
+            f'<p class="muted">PSBT version: v{e(str(fp["psbt_version"]))} (the file format '
+            'only; it is never broadcast, so observers never see it).</p></section>')
 
 
 def _details(report: Report, shown_evidence: set) -> str:

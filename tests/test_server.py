@@ -72,3 +72,15 @@ def test_psbt_is_not_logged(client, caplog):
     with caplog.at_level(logging.DEBUG):
         client.post("/api/analyze", content=text.encode())
     assert text[:40] not in caplog.text
+
+
+def test_unexpected_error_is_not_logged(client, caplog, monkeypatch):
+    secret = "cHNidP8BAHECAAAAAQ-psbt-that-must-not-be-logged"
+
+    def boom(data):
+        raise ValueError(secret)
+    monkeypatch.setattr(server, "check", boom)
+    with caplog.at_level(logging.DEBUG):
+        r = client.post("/api/analyze", content=secret.encode())
+    assert r.status_code == 500 and 'data-code="internal"' in r.text
+    assert secret not in caplog.text and secret not in r.text

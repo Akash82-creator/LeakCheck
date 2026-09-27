@@ -13,7 +13,10 @@ is `leakcheck/rules.py` (`analyze()` is pure: no I/O). Constants live in
 
 ## 1. Ownership (evaluated in order; first match wins)
 
-1. An input without UTXO data → **error** (values are never guessed).
+1. An input without UTXO data → **error** (values are never guessed). When the
+   full previous transaction is included, it must hash to the txid being spent,
+   the spent output must exist, and a `witness_utxo` that disagrees with it is
+   an **error**.
 2. Malformed tx (no outputs, duplicate outpoint, Σout > Σin) → **error**.
 3. No input has a derivation → **error**: no truth to compare against.
 4. An input lists more than one fingerprint → **stop**: multisig unsupported.
@@ -38,7 +41,7 @@ rules report observer guesses only (`neutral`, unverifiable); `changeless`,
 | Rule | Fires when | Result |
 |---|---|---|
 | `common-input-linkage` | L has ≥2 distinct scriptPubKeys | warning; high if ≥3 distinct, else medium; `likely` if L is all owned, `possible` if any input is unattributed |
-| `foreign-input` | ≥1 foreign input | favorable: the observer wrongly links the other party's coins to yours. Links among your own inputs remain |
+| `foreign-input` | ≥1 foreign input | favorable: another wallet's fingerprint is on these inputs (e.g. a PayJoin receiver), so linking them to your coins is wrong if that wallet isn't yours. Links among your own inputs remain |
 | `input-address-reuse` | ≥2 inputs in L share a scriptPubKey | warning, medium |
 | `sender-reuse` | an output reuses an L input's scriptPubKey, or ≥2 owned outputs share one | warning, high |
 | `recipient-reuse` | ≥2 external outputs share a scriptPubKey, or one reuses a foreign input's | warning, medium (mainly harms the recipient) |
@@ -88,8 +91,10 @@ else:
 
 ## 4. Always shown
 
-- **Fingerprint panel:** nVersion, nLockTime, per-input nSequence (RBF if
-  < 0xfffffffe), PSBT version. Visible, not fixable in this transaction.
+- **Transaction fingerprint signals:** nVersion, nLockTime, per-input nSequence
+  (RBF if < 0xfffffffe). Visible on-chain, not fixable in this transaction, and
+  unrelated to the wallet's BIP32 master fingerprint. The PSBT version is shown
+  separately: it is never broadcast.
 - **Not checked:** address reuse across wallet history; network-level leaks;
   timing and amount correlation; off-chain data.
 - **Count:** "X of Y checks applied". A check that ran but made no guess counts

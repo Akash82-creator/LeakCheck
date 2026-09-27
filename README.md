@@ -41,9 +41,21 @@ python -m pytest                       # full test suite
 CI (`.github/workflows/tests.yml`) runs the full suite on Python 3.11 and 3.12
 for every pull request and every push to `main`.
 
-**Accepted input:** unsigned or partially signed PSBTs (v0 or v2) as a base64
-paste, hex, or a binary/base64 `.psbt` file. A *finalized* PSBT has had its
-wallet metadata removed and is rejected with an explanation (see `CHANGELOG.md`).
+**Accepted input:** unsigned, partially signed, or signed PSBTs (v0 or v2) as a
+base64 paste, hex, or a binary/base64 `.psbt` file. A finalized PSBT is accepted
+if it still carries wallet metadata (Sparrow keeps it); one whose metadata was
+removed is rejected with an explanation.
+
+## Validation status
+
+| What | Status |
+|---|---|
+| Synthetic fixtures | **Tested** |
+| PSBTs built by Sparrow 2.2.3's own code (signed release, run headlessly; [how](scripts/sparrow/README.md)) | **Tested**: P2WPKH, P2SH-P2WPKH, Taproot, PSBT v0/v2, signed and finalized |
+| A PSBT exported from the Sparrow GUI from a real signet wallet | **Still pending** |
+| Other wallets | **Not tested** |
+
+Details and the steps to close the pending row: [`NOTES.md`](NOTES.md).
 
 ## How it works: the simulated observer
 
@@ -87,6 +99,9 @@ would run by default.
   Content-Security-Policy allows exactly that script and style (by hash) and
   nothing else: no CDN, no remote fonts, no analytics. A test scans the built
   HTML for `http://`, `https://` and `//`.
+- The page itself makes no request except to the local server. Your *browser*
+  may still make its own background connections (Chromium does, even on a blank
+  page); that is outside LeakCheck's control.
 - PSBTs are analyzed in memory. They are never written to disk or logged; the
   access log is off. `PSBT_GLOBAL_XPUB` is never read or displayed.
 - `--html` writes a report file *you* asked for. It contains amounts from your
@@ -99,7 +114,7 @@ would run by default.
 1. Notices (e.g. degraded mode) and the honest check count
 2. Warnings, with action cards: *Fixable before broadcast* or *Limited*
 3. Favorable findings
-4. Fingerprint panel: nVersion, nLockTime, nSequence (visible, not fixable in this transaction)
+4. Transaction fingerprint signals: nVersion, nLockTime, nSequence (visible on-chain, not fixable in this transaction; unrelated to your wallet's master key fingerprint)
 5. What is **not** checked (history-wide address reuse, network leaks, timing, off-chain data)
 6. Details (collapsed): neutral and not-applicable checks
 
@@ -115,8 +130,10 @@ would run by default.
 A is more linkable than B **under these checks**. Neither is "clean".
 
 > The bundled samples are synthetic (fixed test seeds, `scripts/make_samples.py`).
-> Swap in real Sparrow signet PSBTs before recording, then refresh the golden
-> snapshots: `UPDATE_GOLDEN=1 python -m pytest tests/test_report.py`.
+> Sparrow-built equivalents with the same findings are in `tests/fixtures/`
+> (`sparrow223_p2wpkh_demo_{a,b}.psbt`). For the recording, export A and B from
+> the Sparrow GUI, then refresh the golden snapshots:
+> `UPDATE_GOLDEN=1 python -m pytest tests/test_report.py`.
 
 ## Non-goals
 

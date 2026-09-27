@@ -71,9 +71,9 @@ def normalize(raw: dict) -> NormalizedTx:
         if any(i.get("finalized") for i in ins):
             raise LeakCheckError(
                 "finalized_no_metadata",
-                "This PSBT is finalized: finalizing removes the wallet metadata "
-                "this check needs. Export it before finalizing (unsigned or "
-                "partially signed).")
+                "This PSBT is finalized and carries no wallet metadata (some "
+                "wallets remove it when finalizing). Export it before signing "
+                "or finalizing.")
         raise LeakCheckError(
             "no_metadata",
             "This PSBT contains no wallet metadata (no derivation paths), so "

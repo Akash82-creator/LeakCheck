@@ -38,9 +38,11 @@ def render(report, fp) -> str:
     else:
         lines.append(f"{c['applied']} of {c['total']} checks applied; "
                      f"{c['not_applicable']} not applicable.")
-    lines.append(f"Fingerprint (visible, not fixable here): nVersion={fp['tx_version']} "
-                 f"nLockTime={fp['locktime']} RBF={fp['signals_rbf']} "
-                 f"PSBT v{fp['psbt_version']}. {fp['note']}")
+    lines.append("Transaction fingerprint signals (visible on-chain, not fixable here; "
+                 "not your wallet's master fingerprint): "
+                 f"nVersion={fp['tx_version']} nLockTime={fp['locktime']} "
+                 f"nSequence={','.join(fp['sequences'])} RBF={fp['signals_rbf']}. {fp['note']}")
+    lines.append(f"PSBT version: v{fp['psbt_version']} (file format only, never broadcast).")
     lines.append("Not checked:")
     lines += [f"  - {x}" for x in report.not_checked]
     lines.append("Details:")

@@ -76,3 +76,13 @@ def test_values_are_escaped():
     from leakcheck.model import LeakCheckError
     from leakcheck.report import render_error
     assert "<script>" not in render_error(LeakCheckError("x", "<script>alert(1)</script>"))
+
+
+def test_panel_separates_transaction_signals_from_wallet_fingerprint():
+    html = render_fragment(*check(sample_bytes("a")))
+    panel_html = html[html.index('class="fingerprint"'):html.index('class="not-checked"')]
+    assert "Transaction fingerprint signals" in panel_html
+    assert "Not related to your wallet's master key fingerprint" in panel_html
+    table = panel_html[panel_html.index("<table>"):panel_html.index("</table>")]
+    assert "PSBT version" not in table                   # never broadcast, so not "visible"
+    assert "never broadcast" in panel_html
