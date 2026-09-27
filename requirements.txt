@@ -1,0 +1,2 @@
+embit==0.8.0
+pytest>=8
