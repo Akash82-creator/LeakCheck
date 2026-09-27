@@ -22,6 +22,16 @@ def test_full_analysis_makes_no_network_calls(monkeypatch):
     ntx = normalize(extract(pf.standard_payment("p2tr").to_string()))
     analyze(ntx)
     panel(ntx)
+    # ... and every Sparrow-built PSBT, through the full report and the server.
+    from fastapi.testclient import TestClient
+    from leakcheck import server
+    from leakcheck.report import check, render_fragment
+    client = TestClient(server.create_app(), base_url="http" + "://127.0.0.1")
+    fixtures = sorted((PKG.parent / "tests" / "fixtures").glob("sparrow223_*.psbt"))
+    assert len(fixtures) == 13
+    for f in fixtures:
+        render_fragment(*check(f.read_bytes()))
+        assert client.post("/api/analyze", content=f.read_bytes()).status_code == 200
 
 
 # The one URL the package may contain: its own loopback address, used to open

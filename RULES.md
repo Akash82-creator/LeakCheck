@@ -48,7 +48,7 @@ rules report observer guesses only (`neutral`, unverifiable); `changeless`,
 | `consolidation` | ≥2 inputs in L, no foreign inputs, exactly 1 spendable output, owned | warning, high |
 | `self-transfer` | all spendable outputs owned, and not a consolidation | neutral |
 | `small-input` | an input in L below `SMALL_UTXO` is co-spent with another input in L | warning, medium, `possible` |
-| `changeless` | no change output, ≥1 external output | neutral (not a privacy claim) |
+| `changeless` | no change output, ≥1 external output, and no output of yours on a non-standard path (it could be change) | neutral (not a privacy claim) |
 
 ## 3. Change heuristics
 

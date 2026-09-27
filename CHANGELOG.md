@@ -1,6 +1,9 @@
 # CHANGELOG (spec v4 is frozen; every deviation is logged here with its reason)
 
 ## 2026-09-27: fully finalized PSBTs are rejected with an explanation
+*(Partly superseded: only finalized PSBTs **without** metadata are rejected; Sparrow keeps
+the metadata when finalizing. See "audit against Sparrow 2.2.3's own PSBTs" below.)*
+
 **Reason: test-exposed contradiction in the spec.** §4 said "fully signed PSBTs
 accepted", but BIP174 finalizers strip derivation paths, so a finalized PSBT can
 never pass precedence step 3. Unsigned and partially signed PSBTs are accepted.
@@ -53,8 +56,9 @@ path for non-experts, per the Cypherpunk criteria). No rule changes.**
   loopback address, which is needed to open the browser.
 
 ## 2026-09-27: audit against Sparrow 2.2.3's own PSBTs
-**Reason: correctness and robustness bugs found by testing PSBTs built by
-Sparrow's code and by fuzzing them. No rule semantics changed.**
+**Reason: correctness and robustness bugs found while testing PSBTs built by
+Sparrow's code: by fuzzing them (the output crash and the Taproot memory
+exhaustion) and by code review (the UTXO checks). No rule semantics changed.**
 
 Bugs fixed:
 - **Unchecked UTXO copy used for values.** When a segwit input carries both
@@ -100,3 +104,33 @@ snapshots were refreshed. Only transaction data changed (output order, change
 amount, nLockTime 200000). `scripts/make_samples.py` was removed: re-running it
 would have silently overwritten these samples with synthetic ones. They are
 still not GUI exports; see NOTES.md.
+
+## 2026-09-27: final adversarial audit
+**Reason: bugs found by an adversarial review of `main`. No rule semantics
+changed except one correction to `changeless` (below).**
+
+Bugs fixed:
+- **Memory exhaustion from PSBTv2 input/output counts.** embit 0.8.0 (still the
+  latest release, and unfixed on its `master`) allocates one object per
+  declared `PSBT_GLOBAL_INPUT_COUNT` / `OUTPUT_COUNT` before reading any. A
+  count of 2^60 took ~10 s and hit MemoryError under a 1 GB cap; without a cap
+  the process would be killed. Counts above 20,000 (more than any standard
+  transaction can hold) are now rejected before embit allocates.
+- **Request body read fully before the size check.** `/api/analyze` buffered
+  the whole body, then compared it with the 1 MB limit. It now refuses an
+  oversized `Content-Length` before reading and stops reading at the first
+  chunk past the limit. Measured on a live server: a 200 MB streamed upload was
+  cut off after ~1.5 MB, and server memory rose ~1.7 MB.
+- **`changeless` claimed "there is no change output" when an output of yours
+  had a non-standard path.** Such an output is `unknown` and could be change;
+  the spec says `unknown` is never guessed. `changeless` is now not applicable
+  in that case.
+- Launchers: the macOS and Linux wrappers run `scripts/launch.sh` through
+  `bash`, so a lost execute bit (some unzip tools) no longer breaks them.
+
+Wording: the favorable change verdict now states its assumption: an output
+without your wallet's metadata is treated as a payment.
+
+Tests: two tests that used a fake object or a mocked hash check now use real
+PSBTv2 files edited at the key/value level (`tests/psbt_edit.py`). The
+no-network test now covers every Sparrow-built fixture and the server path.

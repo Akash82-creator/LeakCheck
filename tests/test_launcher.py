@@ -72,6 +72,12 @@ def test_unix_launchers_are_executable(name):
     assert os.access(ROOT / name, os.X_OK)
 
 
+@pytest.mark.parametrize("name", ["LeakCheck-mac.command", "LeakCheck-linux.sh"])
+def test_wrappers_run_launch_sh_through_bash(name):
+    """So they still work if scripts/launch.sh lost its execute bit (some unzip tools)."""
+    assert 'exec bash "$(dirname "$0")/scripts/launch.sh"' in (ROOT / name).read_text()
+
+
 def test_launchers_start_the_open_command():
     assert "-m leakcheck open" in (ROOT / "scripts" / "launch.sh").read_text()
     assert "-m leakcheck open" in (ROOT / "LeakCheck-windows.bat").read_text()

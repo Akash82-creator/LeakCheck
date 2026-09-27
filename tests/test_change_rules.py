@@ -130,3 +130,9 @@ def test_strong_single_match_is_likely():
 def test_conflict_caps_confidence_even_when_strong():
     v = combine([g("round-payment", T, strong=True), g("script-type-match", P)], T)
     assert v["kind"] == "warning" and v["confidence"] == "possible"
+
+
+def test_favorable_verdict_states_its_metadata_assumption():
+    r = _round_only(123_457, 200_000)
+    assert r.by_rule("change-verdict").kind == "favorable"
+    assert "treated as a payment" in r.by_rule("change-verdict").limits

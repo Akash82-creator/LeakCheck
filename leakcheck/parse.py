@@ -70,9 +70,23 @@ class _OutputScope(OutputScope):
         return super().read_value(stream, k)
 
 
+# More inputs or outputs than any standard transaction can hold (400,000
+# weight units allow at most ~2,439 inputs or ~11,111 outputs).
+MAX_SCOPES = 20_000
+
+
 class _PSBT(PSBT):
     PSBTIN_CLS = _InputScope
     PSBTOUT_CLS = _OutputScope
+
+    def parse_unknowns(self):
+        """embit 0.8.0 allocates one object per declared PSBTv2 input/output
+        (PSBT_GLOBAL_INPUT_COUNT / OUTPUT_COUNT) before reading any, so a huge
+        count exhausts memory. Reject impossible counts first."""
+        for key in (b"\x04", b"\x05"):
+            if key in self.unknown and compact.from_bytes(self.unknown[key]) > MAX_SCOPES:
+                raise PSBTError("Too many inputs or outputs declared")
+        super().parse_unknowns()
 
 
 def _utxo(i: int, inp):

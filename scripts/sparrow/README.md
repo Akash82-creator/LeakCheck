@@ -33,7 +33,8 @@ driver then runs on Sparrow's unmodified runtime and classes.
 
 ## What this proves
 
-- It's the PSBT content Sparrow 2.2.3's code produces: field layout, PSBT
+- For these made-up wallets and coins, it's the PSBT content Sparrow 2.2.3's
+  code produces: field layout, PSBT
   version (v0), the global xpub, `witness_utxo` together with
   `non_witness_utxo` on segwit v0 inputs, BIP32 and Taproot derivations on
   inputs, derivations on change and self-send outputs, output shuffling,

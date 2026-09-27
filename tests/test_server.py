@@ -84,3 +84,63 @@ def test_unexpected_error_is_not_logged(client, caplog, monkeypatch):
         r = client.post("/api/analyze", content=secret.encode())
     assert r.status_code == 500 and 'data-code="internal"' in r.text
     assert secret not in caplog.text and secret not in r.text
+
+
+# ------------------------------------------------ request size, at ASGI level
+# TestClient reads a streamed body completely before the app sees it, so these
+# drive the ASGI app directly and count how many body chunks it pulls.
+
+CHUNK = 64 * 1024
+
+
+def _asgi_post(app, n_chunks, chunk=b"A" * CHUNK, headers=()):
+    import asyncio
+    pulled, messages = 0, []
+
+    async def receive():
+        nonlocal pulled
+        if pulled < n_chunks:
+            pulled += 1
+            return {"type": "http.request", "body": chunk if isinstance(chunk, bytes)
+                    else chunk[pulled - 1], "more_body": pulled < n_chunks}
+        return {"type": "http.disconnect"}
+
+    async def send(message):
+        messages.append(message)
+
+    scope = {"type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1",
+             "method": "POST", "scheme": "http", "path": "/api/analyze",
+             "raw_path": b"/api/analyze", "query_string": b"", "root_path": "",
+             "headers": [(b"host", b"127.0.0.1"), *headers],
+             "client": ("127.0.0.1", 50000), "server": ("127.0.0.1", 8765)}
+    asyncio.run(app(scope, receive, send))
+    start = next(m for m in messages if m["type"] == "http.response.start")
+    body = b"".join(m.get("body", b"") for m in messages if m["type"] == "http.response.body")
+    return start["status"], pulled, body
+
+
+def test_oversized_streamed_body_stops_reading_at_the_limit():
+    total = 1600                                     # 100 MB offered in 64 KiB chunks
+    status, pulled, body = _asgi_post(server.create_app(), total)
+    assert status == 413 and b"too_large" in body
+    assert pulled <= server.MAX_BODY // CHUNK + 1    # ~16 chunks, not 1,600
+    assert pulled < total
+
+
+def test_declared_oversized_body_is_refused_before_reading():
+    status, pulled, _ = _asgi_post(server.create_app(), 1600, headers=[
+        (b"content-length", str(1600 * CHUNK).encode())])
+    assert status == 413 and pulled == 0
+
+
+def test_body_exactly_at_the_limit_is_read_and_analyzed_normally():
+    status, pulled, body = _asgi_post(server.create_app(), 1, chunk=b"A" * server.MAX_BODY)
+    assert status == 400 and b"not_psbt" in body           # read fully, then rejected as not a PSBT
+
+
+def test_chunked_psbt_is_reassembled():
+    data = pf.standard_payment().to_string().encode()
+    parts = [data[i:i + 100] for i in range(0, len(data), 100)]
+    status, pulled, body = _asgi_post(server.create_app(), len(parts), chunk=parts)
+    assert status == 200 and pulled == len(parts)
+    assert b'data-rule="common-input-linkage"' in body

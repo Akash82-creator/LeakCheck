@@ -5,14 +5,17 @@
 | What | Status |
 |---|---|
 | Synthetic fixtures (hand-built dicts and embit-built PSBTs) | **Tested.** Every rule, precedence step, the verdict truth table, degraded mode. |
-| PSBTs built by **Sparrow 2.2.3's own code** (signed release, driven headlessly; see `scripts/sparrow/README.md`) | **Tested.** 13 cases: P2WPKH, P2SH-P2WPKH, Taproot, PSBT v0 and v2, base64 and binary, hardware-wallet UTXO mode, self-send, send-max, batch, signed, signed-and-finalized (`tests/test_sparrow.py`). |
+| PSBTs built by **Sparrow 2.2.3's own code** (signed release, driven headlessly, made-up coin history; see `scripts/sparrow/README.md`) | **Tested.** 13 cases: P2WPKH, P2SH-P2WPKH, Taproot, PSBT v0 (and v2 made with drongo's `convertVersion(2)`; 2.2.3 itself emits v0), base64 and binary, a hardware-wallet model flag (no difference seen: all segwit v0 cases carried both UTXO copies), self-send, send-max, batch, signed, signed-and-finalized (`tests/test_sparrow.py`). |
 | A PSBT **exported from the Sparrow GUI** from a real signet wallet | **Pending.** Not done: no signet wallet or GUI was available in the build environment. |
 | Other wallets (Bitcoin Core, Electrum, hardware wallets, PayJoin receivers) | **Not tested.** |
 
 To close the pending row: in Sparrow (signet), build demo A and demo B,
-click *Finalize Transaction for Signing*, then **File → Copy as Base64**
-(and **Save PSBT** for the binary form), and run `python -m leakcheck file.psbt`.
-Expected findings are the ones in `tests/test_sparrow.py`.
+click *Finalize Transaction for Signing*, then use Sparrow's "Copy as Base64"
+command (the source names it `copyPSBTBase64`; its exact menu location is
+UNVERIFIED) or **Save PSBT** for the binary form, and run
+`python -m leakcheck file.psbt`. With the same amounts and coin choices (A: 80,000
++ 70,000 + 600 sats paying 100,000; B: one 200,000-sat coin paying 100,000), the
+findings should match `tests/test_sparrow.py`. Real fees and output order will differ.
 
 ## Day-0 checks
 
@@ -28,8 +31,8 @@ Expected findings are the ones in `tests/test_sparrow.py`.
 
 ## Other facts learned from Sparrow 2.2.3
 
-- Every PSBT includes one `PSBT_GLOBAL_XPUB`. LeakCheck never reads it; tests
-  check it never reaches the report.
+- Every PSBT includes one `PSBT_GLOBAL_XPUB`. embit parses it; LeakCheck never
+  uses or displays it, and tests check it never reaches the report.
 - Signing then finalizing in Sparrow **keeps** the derivation paths, so a PSBT
   exported after signing is still accepted. Wallets that strip them get
   `finalized_no_metadata`.
@@ -41,11 +44,15 @@ Expected findings are the ones in `tests/test_sparrow.py`.
 
 ## Robustness (fuzzing)
 
-Mutating the Sparrow-built PSBTs 20,000 times turned up three crashes and
-one memory exhaustion (fixed; see `CHANGELOG.md`). After the fixes, 60,000
-further mutations produced no exception other than a clean `LeakCheckError`,
-and none took more than 0.5 s. A fast deterministic slice runs in the test
-suite (`test_mutated_psbts_only_ever_raise_leakcheck_errors`).
+Mutating the Sparrow-built PSBTs 20,000 times turned up two crash types (an
+output without amount or script) and one memory exhaustion (Taproot leaf-hash
+count). Code review found two more (an unchecked `witness_utxo`, an out-of-range
+vout). After those fixes, 60,000 further mutations produced no exception other
+than a clean `LeakCheckError`, and none took more than 0.5 s. Random fuzzing
+still missed a second memory exhaustion (PSBTv2 input/output counts), found
+later by reading embit's code; see `CHANGELOG.md`. Fuzzing is evidence, not proof.
+A fast deterministic slice runs in the test suite
+(`test_mutated_psbts_only_ever_raise_leakcheck_errors`).
 
 ## Demo samples
 

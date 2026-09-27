@@ -4,7 +4,8 @@
 before you broadcast. It plays a blockchain observer, runs the standard
 heuristics that observer would use, and compares the observer's guesses with
 what your wallet actually did. It tells you which inferences would be
-**correct** (a leak) and what you can still change. Nothing leaves your machine.
+**correct** (a leak) and what you can still change. LeakCheck sends your PSBT
+nowhere: the analysis runs on your machine.
 
 LeakCheck never calls a transaction "clean", "safe" or "private". With no warnings it says:
 *"X of Y checks applied to this transaction; none found a leak; Z not
@@ -19,6 +20,9 @@ Install Python 3.11 or newer, download this repository, then double-click:
 | macOS | `LeakCheck-mac.command` (first time: right-click → Open, because macOS blocks downloaded scripts) |
 | Windows | `LeakCheck-windows.bat` |
 | Linux | `LeakCheck-linux.sh` (or run it from a terminal) |
+
+The Linux launcher has been tested; the macOS and Windows launchers are
+**not yet tested** on those systems.
 
 LeakCheck opens in your browser. Close the window that appeared to stop it.
 The first launch sets up a private Python environment in `.venv`, which
@@ -51,7 +55,7 @@ removed is rejected with an explanation.
 | What | Status |
 |---|---|
 | Synthetic fixtures | **Tested** |
-| PSBTs built by Sparrow 2.2.3's own code (signed release, run headlessly; [how](scripts/sparrow/README.md)) | **Tested**: P2WPKH, P2SH-P2WPKH, Taproot, PSBT v0/v2, signed and finalized |
+| PSBTs built by Sparrow 2.2.3's own wallet code (drongo, from the signed release, run headlessly with a made-up coin history; [how](scripts/sparrow/README.md)) | **Tested**: P2WPKH, P2SH-P2WPKH, Taproot, PSBT v0 (v2 via drongo's converter), signed and finalized |
 | A PSBT exported from the Sparrow GUI from a real signet wallet | **Still pending** |
 | Other wallets | **Not tested** |
 
@@ -71,8 +75,11 @@ result is compared to the truth:
 | no signal / not applicable / unverifiable | `neutral` (under Details) |
 
 Worst-case observer: conflicting signals lower **confidence**, never **severity**.
-Missing metadata is never treated as evidence. The full rule set is in
-[`RULES.md`](RULES.md).
+An input without metadata is never treated as evidence: it counts as possibly
+yours. One assumption remains: an output without your wallet's metadata is taken
+to be a payment. Wallets that mark all their own outputs (Sparrow 2.2.3's code does) make
+this safe; otherwise a *favorable* change finding could be wrong, and the report
+says so. The full rule set is in [`RULES.md`](RULES.md).
 
 ```
 input (file drop | paste | CLI path)
@@ -90,20 +97,22 @@ would run by default.
 
 | Mode | Who learns what |
 |---|---|
-| Local check (CLI or `serve`) | Nobody. The analysis makes zero network requests; a test blocks all sockets and runs it. |
+| Local check (CLI or `serve`) | Nobody. The analysis makes no network requests; a test blocks outgoing socket connections and runs every Sparrow-built fixture through it. |
 | Broadcasting afterwards | Your wallet or node connection. Out of scope for LeakCheck. |
 | Hosted demo (`serve --demo`) | Refuses user PSBTs; only analyzes the bundled signet samples. |
 
 - The server binds to `127.0.0.1` only and refuses requests for any other host name.
 - The page is a single HTML file with its CSS and JS inlined. A
   Content-Security-Policy allows exactly that script and style (by hash) and
-  nothing else: no CDN, no remote fonts, no analytics. A test scans the built
+  requests only back to the local server: no CDN, no remote fonts, no analytics. A test scans the built
   HTML for `http://`, `https://` and `//`.
 - The page itself makes no request except to the local server. Your *browser*
   may still make its own background connections (Chromium does, even on a blank
   page); that is outside LeakCheck's control.
-- PSBTs are analyzed in memory. They are never written to disk or logged; the
-  access log is off. `PSBT_GLOBAL_XPUB` is never read or displayed.
+- PSBTs are analyzed in memory. LeakCheck never writes them to disk or logs
+  them; the access log is off, and unexpected errors return a generic message
+  without logging. Request bodies over 1 MB are refused while being read.
+  `PSBT_GLOBAL_XPUB` is parsed by embit but never used or displayed.
 - `--html` writes a report file *you* asked for. It contains amounts from your
   transaction: treat it as private.
 - To host the demo behind a reverse proxy, the proxy must forward to
