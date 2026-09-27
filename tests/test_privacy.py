@@ -24,10 +24,18 @@ def test_full_analysis_makes_no_network_calls(monkeypatch):
     panel(ntx)
 
 
+# The one URL the package may contain: its own loopback address, used to open
+# the local page in the browser (server.local_url).
+LOOPBACK_URL = "http://{HOST}:{port}/"
+
+
 def test_package_source_contains_no_urls():
     for f in PKG.rglob("*"):
         if f.suffix in {".py", ".html", ".js", ".css"}:
             text = f.read_text()
+            if f.name == "server.py":
+                assert text.count("http://") == text.count(LOOPBACK_URL) == 1, f.name
+                text = text.replace(LOOPBACK_URL, "")
             assert "http://" not in text and "https://" not in text, f.name
 
 

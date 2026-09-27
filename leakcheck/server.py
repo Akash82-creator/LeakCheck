@@ -12,6 +12,10 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import socket
+import threading
+import time
+import webbrowser
 from importlib import resources
 
 from fastapi import FastAPI, Request
@@ -74,9 +78,15 @@ def render_app(demo: bool = False):
 def _fragment(data) -> tuple:
     try:
         report, fp = check(data)
+        return render_fragment(report, fp), 200
     except LeakCheckError as e:
         return render_error(e), 400
-    return render_fragment(report, fp), 200
+    except Exception:
+        # Never let an unexpected error reach the server's error log: its
+        # message or traceback could quote the PSBT. Nothing is logged here.
+        err = LeakCheckError("internal", "Unexpected error while checking this PSBT. "
+                             "Nothing was saved or logged.")
+        return render_error(err), 500
 
 
 def create_app(demo: bool = False) -> FastAPI:
@@ -115,10 +125,51 @@ def create_app(demo: bool = False) -> FastAPI:
     return app
 
 
-def serve(port: int = DEFAULT_PORT, demo: bool = False) -> None:
+def pick_port(preferred: int = DEFAULT_PORT) -> int:
+    """The preferred port if it is free on 127.0.0.1, else any free port."""
+    for candidate in (preferred, 0):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            try:
+                sock.bind((HOST, candidate))
+            except OSError:
+                continue
+            return sock.getsockname()[1]
+    raise OSError("no free local port")
+
+
+def local_url(port: int) -> str:
+    # Only ever the loopback address this process itself is serving.
+    return f"http://{HOST}:{port}/"
+
+
+def open_when_ready(port: int, timeout: float = 15.0, opener=None) -> bool:
+    """Open the page in the default browser once the server accepts
+    connections on 127.0.0.1. Returns False if it never came up."""
+    opener = opener or webbrowser.open
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            with socket.create_connection((HOST, port), timeout=0.5):
+                break
+        except OSError:
+            time.sleep(0.1)
+    else:
+        return False
+    opener(local_url(port))
+    return True
+
+
+def serve(port: int = DEFAULT_PORT, demo: bool = False, open_browser: bool = False) -> None:
     import uvicorn
-    print(f"LeakCheck is running locally. Open {HOST}:{port} in your browser. "
-          "Press Ctrl+C to stop.")
+    if open_browser:
+        port = pick_port(port)
+        threading.Thread(target=open_when_ready, args=(port,), daemon=True).start()
+        print(f"LeakCheck is running on this computer only, at {HOST}:{port}.\n"
+              "Your browser should open by itself; if not, type that address into it.\n"
+              "To stop LeakCheck, close this window (or press Ctrl+C).")
+    else:
+        print(f"LeakCheck is running locally. Open {HOST}:{port} in your browser. "
+              "Press Ctrl+C to stop.")
     # host is fixed: never 0.0.0.0. access_log off: nothing about requests is logged.
     uvicorn.run(create_app(demo), host=HOST, port=port, log_level="warning",
                 access_log=False)

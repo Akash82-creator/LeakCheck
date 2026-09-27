@@ -78,3 +78,17 @@ def test_degraded_mode_keeps_input_truth_and_guesses_change():
     assert not r.by_rule("changeless").applicable
     assert not r.by_rule("self-transfer").applicable
     assert r.by_rule("change-verdict") is None                # nothing to verify against
+
+
+@pytest.mark.parametrize("path", [(84 + H, 1 + H, 0 + H, 1, 5 + H),   # hardened index
+                                  (1,),                                # too short
+                                  (84 + H, 1 + H, 0 + H, 2, 0)])       # chain 2
+def test_non_standard_paths_are_unknown_never_change(path):
+    ntx = normalize(raw([inp(10_000)], [out(5_000), out(4_000, role=[(F, path)])]))
+    assert ntx.outputs[1].role == "unknown"
+
+
+def test_non_standard_path_does_not_identify_the_wallet():
+    weird = (F, (84 + H, 1 + H, 0 + H, 1, 5 + H))
+    assert err([inp(10_000), inp(10_000, der="foreign")],
+               [out(12_000), out(7_000, role=[weird])]) == "unidentified_wallet"

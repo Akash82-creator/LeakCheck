@@ -39,3 +39,64 @@ output (e.g. a self-receive) proves that output metadata exists.
   is shown under Evidence.
 - `serve --demo` implements the hosted-demo row of §3.
 - Demo PSBTs A/B are synthetic until real Sparrow signet PSBTs replace them.
+
+## 2026-09-27: double-click launchers and `leakcheck open`
+**Reason: requested addition beyond spec v4 (makes the private path the easy
+path for non-experts, per the Cypherpunk criteria). No rule changes.**
+- `leakcheck open` starts the local server and opens the page in the default
+  browser once the server is accepting connections. If port 8765 is busy, it
+  uses another free port. Still bound to 127.0.0.1 only.
+- `LeakCheck-mac.command`, `LeakCheck-windows.bat`, `LeakCheck-linux.sh`:
+  double-click launchers. The first run creates `.venv` and installs
+  requirements (the only network use); later runs start straight away.
+- The package-source URL test now allows exactly one URL: the local page's own
+  loopback address, which is needed to open the browser.
+
+## 2026-09-27: audit against Sparrow 2.2.3's own PSBTs
+**Reason: correctness and robustness bugs found by testing PSBTs built by
+Sparrow's code and by fuzzing them. No rule semantics changed.**
+
+Bugs fixed:
+- **Unchecked UTXO copy used for values.** When a segwit input carries both
+  `non_witness_utxo` and `witness_utxo` (Sparrow always sends both), the
+  previous tx was hash-checked but the values were read from `witness_utxo`
+  (embit's `utxo` prefers it), which nothing checked. Now the checked
+  previous-tx output is used, and a disagreeing `witness_utxo` is rejected
+  (`utxo_mismatch`).
+- **Crash when the spent output doesn't exist** in the included previous tx
+  (`IndexError`). Now `utxo_mismatch`.
+- **Crash on an output with no amount or script** (possible in malformed v2
+  PSBTs). Now `malformed`. Any other unexpected error while reading fields is
+  also reported as `malformed` instead of escaping.
+- **Memory exhaustion from a crafted Taproot derivation.** embit 0.8.0 (still
+  unfixed upstream) loops over an unchecked leaf-hash count, so ~670 bytes
+  could hang the tool and exhaust memory. The count is now checked before embit
+  reads the field (subclassed input/output scopes; embit still does all parsing).
+- **Server error log could have quoted a PSBT.** Any unexpected error during
+  analysis now returns a generic error and logs nothing.
+- `small-input` observation said "spent together with 0 other input(s)" when
+  every co-spent input was small. Wording only; the rule is unchanged.
+
+Wording changed at the review's request (the spec is otherwise frozen):
+- The fingerprint panel is titled "Transaction fingerprint signals" and says it
+  is unrelated to the wallet's master key fingerprint. The PSBT version moved
+  out of the "visible" table, because it is never broadcast.
+- `foreign-input` is described as evidence of another wallet fingerprint (it
+  could still be a wallet you control), not as proof of another party or of PayJoin.
+- The change-verdict card says it combines the change heuristics and is not
+  counted as a separate check (counting itself is unchanged).
+
+Correction to an earlier entry: "BIP174 finalizers strip derivation paths, so
+a finalized PSBT can never pass precedence step 3" is **not true for Sparrow**,
+which keeps them. Behavior was already right (a finalized PSBT is rejected only
+when it has no metadata); the `finalized_no_metadata` message now says "some
+wallets remove it" instead of claiming all do.
+
+## 2026-09-27: demo samples now come from Sparrow 2.2.3's code
+**Reason: closer to the spec's "Sparrow signet PSBTs" than the synthetic
+stand-ins, with the same findings.** `leakcheck/samples/demo_{a,b}.psbt` are
+copies of `tests/fixtures/sparrow223_p2wpkh_demo_{a,b}.psbt`, and the golden
+snapshots were refreshed. Only transaction data changed (output order, change
+amount, nLockTime 200000). `scripts/make_samples.py` was removed: re-running it
+would have silently overwritten these samples with synthetic ones. They are
+still not GUI exports; see NOTES.md.

@@ -34,3 +34,13 @@ def test_every_finding_has_a_full_card():
     for ins, outs in CASES:
         for f in run(ins, outs).findings:
             assert f.observation and f.inference and f.action and f.limits, f.rule
+
+
+def test_change_verdict_aggregates_and_is_not_counted():
+    from leakcheck.report import render_fragment
+    r = run([inp(500_000)], [out(100_000), out(123_457, role="change")])
+    assert "change-verdict" not in RULE_CATALOG
+    assert r.by_rule("change-verdict").kind == "warning"
+    assert r.counts()["total"] == len(RULE_CATALOG) == 12
+    fp = {"tx_version": 2, "locktime": 0, "sequences": [], "psbt_version": 0, "note": ""}
+    assert "not counted as a separate check" in render_fragment(r, fp)

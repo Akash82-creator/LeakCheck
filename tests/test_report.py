@@ -1,6 +1,7 @@
 """Report rendering: counts, fingerprint panel, layout order, golden snapshots.
 
-Golden files are the full report for demo PSBTs A and B. After an intended
+Golden files are the full report for demo PSBTs A and B (built by Sparrow
+2.2.3's code; copies of tests/fixtures/sparrow223_p2wpkh_demo_{a,b}.psbt). After an intended
 change, regenerate with:  UPDATE_GOLDEN=1 python -m pytest tests/test_report.py
 """
 
@@ -57,7 +58,8 @@ def test_summary_without_warnings_never_claims_privacy():
 
 def test_fingerprint_panel_values():
     fp = panel(normalize(extract(sample_bytes("a"))))
-    assert fp["tx_version"] == 2 and fp["locktime"] == 0 and fp["psbt_version"] == 0
+    # Sparrow sets nLockTime to the current block height (anti-fee-sniping)
+    assert fp["tx_version"] == 2 and fp["locktime"] == 200_000 and fp["psbt_version"] == 0
     assert fp["sequences"] == ["0xfffffffd"] * 3 and fp["signals_rbf"] is True
     html = render_fragment(*check(sample_bytes("a")))
     assert "0xfffffffd (signals RBF)" in html and "nLockTime" in html
@@ -76,3 +78,13 @@ def test_values_are_escaped():
     from leakcheck.model import LeakCheckError
     from leakcheck.report import render_error
     assert "<script>" not in render_error(LeakCheckError("x", "<script>alert(1)</script>"))
+
+
+def test_panel_separates_transaction_signals_from_wallet_fingerprint():
+    html = render_fragment(*check(sample_bytes("a")))
+    panel_html = html[html.index('class="fingerprint"'):html.index('class="not-checked"')]
+    assert "Transaction fingerprint signals" in panel_html
+    assert "Not related to your wallet's master key fingerprint" in panel_html
+    table = panel_html[panel_html.index("<table>"):panel_html.index("</table>")]
+    assert "PSBT version" not in table                   # never broadcast, so not "visible"
+    assert "never broadcast" in panel_html

@@ -71,8 +71,8 @@ def foreign_input(ntx):
     if not foreign:
         return _na("foreign-input", "no input belongs to another wallet")
     return _finding("foreign-input", "favorable",
-                    f"{len(foreign)} input(s) carry another wallet's fingerprint "
-                    "(e.g. a PayJoin receiver).")
+                    f"{len(foreign)} input(s) carry a different wallet (master key) "
+                    "fingerprint than yours. In a PayJoin, that would be the receiver's input.")
 
 
 def input_address_reuse(ntx):
@@ -149,7 +149,8 @@ def small_input(ntx):
         return _na("small-input", f"no input under {SMALL_UTXO:,} sats spent with others")
     desc = ", ".join(f"input {i.index} ({_sats(i.value)})" for i in small)
     return _finding("small-input", "warning",
-                    f"{desc} spent together with {len(L) - len(small)} other input(s).",
+                    f"{desc} {'is' if len(small) == 1 else 'are'} spent together with "
+                    f"your other inputs ({len(L)} in this transaction).",
                     impact="medium", confidence="possible")
 
 
@@ -316,7 +317,7 @@ def analyze(ntx: NormalizedTx) -> Report:
     if ntx.outputs_unverifiable:
         notices.append(cards.DEGRADED_NOTICE)
     if ntx.wallet_fp_source == "internal-chain-output":
-        notices.append("Inputs come from more than one wallet; yours was identified "
-                       "by the wallet that receives the change.")
+        notices.append("Inputs carry more than one wallet (master key) fingerprint; "
+                       "yours was identified as the one that receives the change.")
     return Report(findings=findings, notices=notices,
                   rule_catalog=list(RULE_CATALOG), not_checked=list(cards.NOT_CHECKED))

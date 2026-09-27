@@ -95,3 +95,16 @@ def test_changeless_fires_when_an_owned_output_proves_metadata_exists():
     r = run([inp(100_000)], [out(60_000), out(39_000, role="self")])
     f = r.by_rule("changeless")
     assert f.applicable and f.kind == "neutral"
+
+
+def test_small_input_wording_with_only_small_coins():
+    f = run([inp(500), inp(600)], [out(900)]).by_rule("small-input")
+    assert f.kind == "warning"
+    assert "0 other" not in f.observation and "2 in this transaction" in f.observation
+
+
+def test_foreign_input_is_evidence_of_another_wallet_not_proof_of_payjoin():
+    f = run([inp(50_000), inp(60_000), inp(40_000, der="foreign")],
+            [out(130_000), out(19_000, role="change")]).by_rule("foreign-input")
+    assert "fingerprint" in f.observation
+    assert "another wallet you control" in f.limits
