@@ -75,6 +75,26 @@ def render_app(demo: bool = False):
     return page, csp
 
 
+async def read_limited(request: Request, limit: int):
+    """The request body, or None if it is larger than `limit`. The limit is
+    enforced while reading: a declared Content-Length over the limit is refused
+    before reading anything, and reading stops at the first chunk past it."""
+    declared = request.headers.get("content-length")
+    if declared is not None:
+        try:
+            if int(declared) > limit:
+                return None
+        except ValueError:
+            return None
+    chunks, size = [], 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > limit:
+            return None
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 def _fragment(data) -> tuple:
     try:
         report, fp = check(data)
@@ -107,8 +127,8 @@ def create_app(demo: bool = False) -> FastAPI:
             err = LeakCheckError("demo_mode", "This hosted demo only analyzes the "
                                  "bundled samples. Run LeakCheck locally to check your own.")
             return HTMLResponse(render_error(err), status_code=403, headers=common)
-        body = await request.body()
-        if len(body) > MAX_BODY:
+        body = await read_limited(request, MAX_BODY)
+        if body is None:
             err = LeakCheckError("too_large", "That is far larger than any PSBT.")
             return HTMLResponse(render_error(err), status_code=413, headers=common)
         html, status = _fragment(body)

@@ -160,6 +160,10 @@ def changeless(ntx):
                    "looks the same as missing output metadata")
     if ntx.change_outputs:
         return _na("changeless", "there is a change output")
+    if any(o.role == "unknown" for o in ntx.spendable_outputs):
+        # 'unknown' is never guessed: it may be change on a non-standard path.
+        return _na("changeless", "an output of yours has a non-standard derivation "
+                   "path, so whether it is change can't be told")
     if not any(o.role == "external" for o in ntx.spendable_outputs):
         return _na("changeless", "no payment to anyone else")
     return _finding("changeless", "neutral", "No change output; at least one payment.")

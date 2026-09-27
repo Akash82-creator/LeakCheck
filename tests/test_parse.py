@@ -102,15 +102,17 @@ def test_edited_previous_transaction_is_rejected():
 
 
 def test_vout_index_out_of_range_is_a_clean_error():
-    from embit.psbt import PSBT as EmbitPSBT
-    from leakcheck.parse import _utxo, decode
-    psbt = EmbitPSBT.parse(decode(_sparrow("p2wpkh_demo_b")))
-    inp = psbt.inputs[0]
-    inp.verify = lambda *a, **k: True                   # pretend the hash matched
-    inp.vout = len(inp.non_witness_utxo.vout) + 5
+    """PSBTv2 stores the spent txid and output index separately, so the
+    previous tx can hash correctly while the index points past its outputs."""
+    import psbt_edit
+    from leakcheck.parse import decode
+    maps = psbt_edit.split(decode(_sparrow("p2wpkh_demo_b_psbt_v2")))
+    inp = maps[1]
+    psbt_edit.drop_field(inp, b"\x01")                 # witness_utxo: keep only the full prev tx
+    psbt_edit.set_field(inp, b"\x0f", (7).to_bytes(4, "little"))   # PSBT_IN_OUTPUT_INDEX
     with pytest.raises(LeakCheckError) as e:
-        _utxo(0, inp)
-    assert e.value.code == "utxo_mismatch"
+        extract(psbt_edit.join(maps))
+    assert e.value.code == "utxo_mismatch" and "output 7" in e.value.message
 
 
 def test_taproot_leaf_hash_count_bomb_is_rejected_fast():
@@ -133,18 +135,38 @@ def test_taproot_leaf_hash_count_bomb_is_rejected_fast():
     assert e.value.code == "malformed" and time.monotonic() - t < 1
 
 
-def test_output_without_amount_is_malformed_not_a_crash():
-    from leakcheck import parse
-    p = pf.standard_payment()
-
-    class NoAmount:
-        value, script_pubkey = None, None
-    fake = type("P", (), {"inputs": [], "outputs": [NoAmount()], "version": 2,
-                          "tx_version": 2, "locktime": 0})()
+@pytest.mark.parametrize("key", [b"\x03", b"\x04"])      # PSBT_OUT_AMOUNT, PSBT_OUT_SCRIPT
+def test_output_without_amount_or_script_is_malformed_not_a_crash(key):
+    import psbt_edit
+    from leakcheck.parse import decode
+    maps = psbt_edit.split(decode(_sparrow("p2wpkh_demo_b_psbt_v2")))
+    psbt_edit.drop_field(maps[-1], key)                 # last map = last output
     with pytest.raises(LeakCheckError) as e:
-        parse._fields(fake)
+        extract(psbt_edit.join(maps))
     assert e.value.code == "malformed"
-    assert extract(p.serialize())                       # a normal PSBT still parses
+
+
+def test_psbt_edit_roundtrip_is_lossless():
+    import psbt_edit
+    from leakcheck.parse import decode
+    raw = decode(_sparrow("p2wpkh_demo_b_psbt_v2"))
+    assert psbt_edit.join(psbt_edit.split(raw)) == raw
+
+
+@pytest.mark.parametrize("key", [b"\x04", b"\x05"])      # PSBT_GLOBAL_INPUT/OUTPUT_COUNT
+def test_psbt_v2_count_bomb_is_rejected_fast(key):
+    """embit 0.8.0 would allocate one object per declared input/output first."""
+    import time
+    import psbt_edit
+    from embit import compact
+    from leakcheck.parse import decode
+    maps = psbt_edit.split(decode(_sparrow("p2wpkh_demo_b_psbt_v2")))
+    psbt_edit.set_field(maps[0], key, compact.to_bytes(2 ** 60))
+    t = time.monotonic()
+    with pytest.raises(LeakCheckError) as e:
+        extract(psbt_edit.join(maps))
+    assert e.value.code == "malformed" and "Too many" in e.value.message
+    assert time.monotonic() - t < 1
 
 
 def test_mutated_psbts_only_ever_raise_leakcheck_errors():

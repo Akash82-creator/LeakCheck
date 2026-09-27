@@ -121,7 +121,9 @@ CARDS = {
         "The heuristics implemented here would point an observer at the wrong "
         "output.",
         "Nothing to change.",
-        "Heuristics not implemented here might still find your change."),
+        "Heuristics not implemented here might still find your change. This "
+        "assumes your wallet marked every output of its own: an output of yours "
+        "without that metadata is treated as a payment here."),
     ("change-verdict", "neutral"): (
         "None of the implemented change heuristics produced a guess.",
         "Nothing indicated.",

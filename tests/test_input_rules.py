@@ -108,3 +108,11 @@ def test_foreign_input_is_evidence_of_another_wallet_not_proof_of_payjoin():
             [out(130_000), out(19_000, role="change")]).by_rule("foreign-input")
     assert "fingerprint" in f.observation
     assert "another wallet you control" in f.limits
+
+
+def test_changeless_does_not_claim_no_change_when_an_owned_output_is_unknown():
+    from helpers import F, H
+    weird = (F, (84 + H, 1 + H, 0 + H, 7, 3))           # ours, non-standard chain
+    r = run([inp(200_000)], [out(100_000), out(99_000, role=[weird])])
+    assert not r.by_rule("changeless").applicable
+    assert "non-standard" in r.by_rule("changeless").observation
