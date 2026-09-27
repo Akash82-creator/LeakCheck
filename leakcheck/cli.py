@@ -1,6 +1,13 @@
-"""Debug CLI: python -m leakcheck.cli file.psbt   (or pipe base64 on stdin).
-Prints the report as text. Makes no network requests."""
+"""Command line. Makes no network requests (except `serve`, which only
+listens on 127.0.0.1).
 
+  leakcheck tx.psbt                    text report (or pipe base64/hex on stdin)
+  leakcheck tx.psbt --html report.html standalone HTML report file
+  leakcheck tx.psbt --json             findings as JSON
+  leakcheck serve [--port N] [--demo]  local web UI
+"""
+
+import json
 import sys
 
 from .fingerprint import panel
@@ -43,8 +50,48 @@ def render(report, fp) -> str:
     return "\n".join(lines)
 
 
+USAGE = ("usage: leakcheck [FILE] [--html OUT | --json]\n"
+         "       leakcheck serve [--port N] [--demo]")
+
+
+def _serve(args) -> int:
+    from .server import DEFAULT_PORT, serve
+    port, demo = DEFAULT_PORT, False
+    it = iter(args)
+    for a in it:
+        if a == "--demo":
+            demo = True
+        elif a == "--port":
+            try:
+                port = int(next(it))
+            except (StopIteration, ValueError):
+                print(USAGE, file=sys.stderr)
+                return 2
+        else:
+            print(USAGE, file=sys.stderr)
+            return 2
+    serve(port=port, demo=demo)
+    return 0
+
+
 def main(argv=None) -> int:
-    argv = sys.argv[1:] if argv is None else argv
+    argv = sys.argv[1:] if argv is None else list(argv)
+    if argv[:1] == ["serve"]:
+        return _serve(argv[1:])
+    html_out, as_json = None, False
+    if "--json" in argv:
+        argv.remove("--json")
+        as_json = True
+    if "--html" in argv:
+        k = argv.index("--html")
+        if k + 1 >= len(argv):
+            print(USAGE, file=sys.stderr)
+            return 2
+        html_out = argv[k + 1]
+        del argv[k:k + 2]
+    if any(a.startswith("-") for a in argv) or len(argv) > 1 or (html_out and as_json):
+        print(USAGE, file=sys.stderr)
+        return 2
     try:
         if argv:
             with open(argv[0], "rb") as fh:
@@ -59,12 +106,35 @@ def main(argv=None) -> int:
     except LeakCheckError as e:
         print(f"ERROR ({e.code}): {e.message}", file=sys.stderr)
         return 2
+    report, fp = analyze(ntx), panel(ntx)
+    if html_out:
+        from importlib import resources
+        from .report import render_fragment, render_page
+        css = resources.files("leakcheck").joinpath("static", "style.css").read_text()
+        try:
+            with open(html_out, "w", encoding="utf-8") as fh:
+                fh.write(render_page(render_fragment(report, fp), css))
+        except OSError as e:
+            print(f"ERROR (io): cannot write {html_out!r}: {e.strerror}", file=sys.stderr)
+            return 2
+        print(f"Report written to {html_out}. It describes your transaction; keep it private.")
+        return 0
     try:
-        print(render(analyze(ntx), panel(ntx)))
+        if as_json:
+            print(json.dumps({"notices": report.notices, "counts": report.counts(),
+                              "findings": [f.as_dict() for f in report.findings],
+                              "fingerprint": fp, "not_checked": report.not_checked},
+                             indent=2))
+        else:
+            print(render(report, fp))
     except BrokenPipeError:                     # e.g. piped into `head`
         sys.stderr.close()
     return 0
 
 
-if __name__ == "__main__":
+def entry() -> None:
     sys.exit(main())
+
+
+if __name__ == "__main__":
+    entry()

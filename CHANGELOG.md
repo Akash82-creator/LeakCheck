@@ -29,3 +29,13 @@ output (e.g. a self-receive) proves that output metadata exists.
 - A binary PSBT on stdin was rejected, because stdin was read as text. It's now read as bytes.
 - Piping the output into `head` raised BrokenPipeError. That's now handled.
 - Hex-text PSBTs and base64 pasted with surrounding quotes are now accepted. This widens what users can paste; it doesn't change the rules.
+
+## 2026-09-27: report layer, local server, docs
+**Reason: implementation of §4, §10 and §13 (no rule or wording changes).**
+- `report.py` renders one HTML report used by both the web UI and `--html`
+  (the Day-5 descope path ships alongside the server, not instead of it).
+- The change verdict's card is tagged *Limited*: every change heuristic it
+  aggregates has a limited fix (§7). The matching heuristics' own action text
+  is shown under Evidence.
+- `serve --demo` implements the hosted-demo row of §3.
+- Demo PSBTs A/B are synthetic until real Sparrow signet PSBTs replace them.
