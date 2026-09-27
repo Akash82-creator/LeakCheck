@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>LeakCheck</title>
+<style>{{STYLE}}</style>
+</head>
+<body data-demo="{{DEMO}}">
+<main>
+<h1>LeakCheck</h1>
+<p class="lede">Before you broadcast: see what a blockchain observer would correctly infer
+from this transaction, and what you can still change.</p>
+{{INPUT}}
+<div class="samples row">
+  <span class="muted">Demo samples (signet):</span>
+  <button class="secondary" data-sample="a">A: three coins (more linkable under these checks)</button>
+  <button class="secondary" data-sample="b">B: one coin (less linkable under these checks)</button>
+</div>
+<div id="result" tabindex="-1" aria-live="polite"></div>
+</main>
+<script>{{SCRIPT}}</script>
+</body>
+</html>

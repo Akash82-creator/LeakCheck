@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "leakcheck"
+version = "0.1.0"
+description = "Local, pre-broadcast PSBT privacy check: what would a blockchain observer correctly infer?"
+requires-python = ">=3.11"
+dependencies = ["embit==0.8.0", "fastapi>=0.110", "uvicorn>=0.29"]
+
+[project.optional-dependencies]
+test = ["pytest>=8", "httpx>=0.27"]
+
+[project.scripts]
+leakcheck = "leakcheck.cli:entry"
+
+[tool.setuptools]
+packages = ["leakcheck"]
+
+[tool.setuptools.package-data]
+leakcheck = ["static/*", "samples/*"]

@@ -54,3 +54,27 @@ def test_unreadable_path_is_a_clean_error(target):
 def test_bad_input_is_a_clean_error(data, code):
     r = cli(stdin=data)
     assert r.returncode == 2 and code in r.stderr and b"Traceback" not in r.stderr
+
+
+def test_html_report_file(tmp_path, psbt):
+    f, html = tmp_path / "a.psbt", tmp_path / "r.html"
+    f.write_bytes(psbt.serialize())
+    r = cli(str(f), "--html", str(html))
+    assert r.returncode == 0, r.stderr
+    page = html.read_text()
+    assert page.startswith("<!doctype html>") and "common-input-linkage" in page
+    assert "//" not in page and "<script" not in page
+
+
+def test_json_output(psbt):
+    import json
+    r = cli("--json", stdin=psbt.to_string().encode())
+    assert r.returncode == 0, r.stderr
+    data = json.loads(r.stdout)
+    assert data["counts"]["total"] == 12 and data["findings"]
+
+
+@pytest.mark.parametrize("args", [["--bogus"], ["a", "b"], ["--html"], ["serve", "--nope"]])
+def test_bad_arguments(args):
+    r = cli(*args)
+    assert r.returncode == 2 and b"usage" in r.stderr

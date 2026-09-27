@@ -4,3 +4,4 @@ __pycache__/
 .venv/
 *.psbt
 !tests/fixtures/*.psbt
+!leakcheck/samples/*.psbt
