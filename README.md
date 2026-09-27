@@ -23,6 +23,9 @@ python -m pytest                       # full test suite
 
 `pip install .` also installs a `leakcheck` command.
 
+CI (`.github/workflows/tests.yml`) runs the full suite on Python 3.11 and 3.12
+for every pull request and every push to `main`.
+
 **Accepted input:** unsigned or partially signed PSBTs (v0 or v2) as a base64
 paste, hex, or a binary/base64 `.psbt` file. A *finalized* PSBT has had its
 wallet metadata removed and is rejected with an explanation (see `CHANGELOG.md`).
