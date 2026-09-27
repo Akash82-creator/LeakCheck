@@ -62,6 +62,7 @@ class NormalizedTx:
     wallet_fp: int                       # F
     wallet_fp_source: str                # "inputs" | "internal-chain-output"
     outputs_unverifiable: bool           # degraded mode: no output carries F
+    metadata_notes: List[str] = field(default_factory=list)   # ignored metadata
 
     @property
     def linkable(self) -> List[TxIn]:

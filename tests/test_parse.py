@@ -193,3 +193,126 @@ def test_mutated_psbts_only_ever_raise_leakcheck_errors():
             render_fragment(*check(bytes(b)))
         except LeakCheckError:
             pass
+
+
+# ------------------------------------------------ PSBT version rules (BIP174/370)
+
+def _v2_maps():
+    import psbt_edit
+    from leakcheck.parse import decode
+    return psbt_edit.split(decode(_sparrow("p2wpkh_demo_b_psbt_v2")))
+
+
+def _v0_maps():
+    import psbt_edit
+    from leakcheck.parse import decode
+    return psbt_edit.split(decode(_sparrow("p2wpkh_demo_b")))
+
+
+def _rejected(maps, words):
+    import psbt_edit
+    with pytest.raises(LeakCheckError) as e:
+        extract(psbt_edit.join(maps))
+    assert e.value.code == "malformed" and words in e.value.message, e.value.message
+
+
+@pytest.mark.parametrize("key,words", [(b"\x02", "TX_VERSION"), (b"\x04", "INPUT_COUNT"),
+                                       (b"\x05", "OUTPUT_COUNT")])
+def test_v2_required_globals(key, words):
+    import psbt_edit
+    maps = _v2_maps()
+    psbt_edit.drop_field(maps[0], key)
+    with pytest.raises(LeakCheckError) as e:
+        extract(psbt_edit.join(maps))
+    assert e.value.code == "malformed"
+
+
+def test_v2_tx_version_is_not_silently_defaulted():
+    import psbt_edit
+    maps = _v2_maps()
+    psbt_edit.drop_field(maps[0], b"\x02")
+    _rejected(maps, "missing PSBT_GLOBAL_TX_VERSION")
+
+
+@pytest.mark.parametrize("version", [1, 3, 255])
+def test_unknown_psbt_versions_are_rejected(version):
+    import psbt_edit
+    maps = _v2_maps()
+    psbt_edit.set_field(maps[0], b"\xfb", version.to_bytes(4, "little"))
+    _rejected(maps, f"Unsupported PSBT version {version}")
+
+
+def test_v2_fields_without_a_version_are_rejected():
+    import psbt_edit
+    maps = _v2_maps()
+    psbt_edit.drop_field(maps[0], b"\xfb")
+    _rejected(maps, "v2-only global fields in a v0 PSBT")
+
+
+def test_v0_with_v2_only_global_is_rejected():
+    import psbt_edit
+    maps = _v0_maps()
+    psbt_edit.set_field(maps[0], b"\x02", (2).to_bytes(4, "little"))
+    _rejected(maps, "v2-only global fields in a v0 PSBT")
+
+
+def test_v2_fixed_width_fields_must_be_4_bytes():
+    import psbt_edit
+    maps = _v2_maps()
+    psbt_edit.set_field(maps[0], b"\x02", b"\x02\x00")
+    _rejected(maps, "must be 4 bytes")
+
+
+@pytest.mark.parametrize("key", [b"\x0e", b"\x0f"])     # PREVIOUS_TXID, OUTPUT_INDEX
+def test_v2_input_required_fields(key):
+    import psbt_edit
+    maps = _v2_maps()
+    psbt_edit.drop_field(maps[1], key)
+    with pytest.raises(LeakCheckError) as e:
+        extract(psbt_edit.join(maps))
+    assert e.value.code in ("malformed", "utxo_mismatch")
+
+
+@pytest.mark.parametrize("scope", [1, -1])              # an input map, an output map
+def test_duplicate_keys_are_rejected(scope):
+    import psbt_edit
+    maps = _v2_maps()
+    maps[scope].append(list(maps[scope][-1]))
+    with pytest.raises(LeakCheckError) as e:
+        extract(psbt_edit.join(maps))
+    assert e.value.code == "malformed"
+
+
+def test_v2_fallback_locktime_is_optional():
+    import psbt_edit
+    maps = _v2_maps()
+    psbt_edit.drop_field(maps[0], b"\x03")
+    assert extract(psbt_edit.join(maps))["locktime"] == 0
+
+
+@pytest.mark.parametrize("fields,expected", [
+    ({b"\x12": 123_456}, 123_456),                      # required height wins over fallback
+    ({b"\x11": 600_000_000}, 600_000_000),              # required time
+    ({b"\x11": 600_000_000, b"\x12": 123_456}, 123_456),  # both supported: height
+])
+def test_v2_required_locktime_sets_nlocktime(fields, expected):
+    import psbt_edit
+    maps = _v2_maps()
+    for k, v in fields.items():
+        psbt_edit.set_field(maps[1], k, v.to_bytes(4, "little"))
+    assert extract(psbt_edit.join(maps))["locktime"] == expected
+
+
+@pytest.mark.parametrize("drop_script", [True, False])
+def test_silent_payments_outputs_are_unsupported_not_misread(drop_script):
+    """BIP375: an SP output may have no script yet, and SP change carries no
+    BIP32 derivation (it would look like a payment)."""
+    import psbt_edit
+    maps = _v2_maps()
+    out = maps[-1]
+    if drop_script:
+        psbt_edit.drop_field(out, b"\x04")                 # PSBT_OUT_SCRIPT
+    psbt_edit.set_field(out, b"\x09", bytes(66))           # PSBT_OUT_SP_V0_INFO (scan+spend keys)
+    with pytest.raises(LeakCheckError) as e:
+        extract(psbt_edit.join(maps))
+    assert e.value.code == "unsupported" and "Silent Payments" in e.value.message

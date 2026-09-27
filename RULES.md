@@ -13,6 +13,12 @@ is `leakcheck/rules.py` (`analyze()` is pure: no I/O). Constants live in
 
 ## 1. Ownership (evaluated in order; first match wins)
 
+0. Before anything else: the PSBT must be a valid v0 (BIP174) or v2 (BIP370)
+   PSBT (known version, required fields, no duplicate keys), without Silent
+   Payments outputs (unsupported). Each derivation's public key must produce
+   the script it is attached to where that can be checked (P2PKH, P2WPKH,
+   P2SH-P2WPKH, Taproot key path); a derivation that fails is **ignored**, and
+   an output where F's derivation failed gets the role `unknown`.
 1. An input without UTXO data → **error** (values are never guessed). When the
    full previous transaction is included, it must hash to the txid being spent,
    the spent output must exist, and a `witness_utxo` that disagrees with it is
@@ -20,6 +26,8 @@ is `leakcheck/rules.py` (`analyze()` is pure: no I/O). Constants live in
 2. Malformed tx (no outputs, duplicate outpoint, Σout > Σin) → **error**.
 3. No input has a derivation → **error**: no truth to compare against.
 4. An input lists more than one fingerprint → **stop**: multisig unsupported.
+   After F is known (step 5): an output listing F and another fingerprint →
+   **stop** too (shared output; LeakCheck can't tell if it is your change).
 5. Wallet fingerprint **F**: the single input fingerprint; if there are several,
    the unique one that also appears on an internal-chain (`…/1/i`) output.
    Zero or several qualify → **stop**.

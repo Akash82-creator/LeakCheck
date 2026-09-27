@@ -48,8 +48,27 @@ def _is_change_of(out: dict, fp: int) -> bool:
     return any(f == fp and chain_of(p) == 1 for f, p in out["derivations"])
 
 
+def _drop_bad(items: list, kind: str, notes: list) -> tuple:
+    """Remove derivations whose key provably doesn't fit the script (parse.py
+    checks this). Returns (items with trusted derivations only, {index: bad fps})."""
+    clean, bad_fps = [], {}
+    for n, it in enumerate(items):
+        bad = set(map(tuple, it.get("bad_derivations", [])))
+        if bad:
+            bad_fps[n] = {fp for fp, _ in bad}
+            notes.append(f"{kind} {n}: wallet metadata that doesn't match its script "
+                         "was ignored.")
+        clean.append(dict(it, derivations=[d for d in it["derivations"]
+                                           if (d[0], tuple(d[1])) not in bad]))
+    return clean, bad_fps
+
+
 def normalize(raw: dict) -> NormalizedTx:
-    ins, outs = raw["inputs"], raw["outputs"]
+    notes: list = []
+    # Metadata is wallet-supplied: keys that provably don't produce the script
+    # they are attached to are not trusted (see parse._key_fits).
+    ins, _ = _drop_bad(raw["inputs"], "Input", notes)
+    outs, out_bad = _drop_bad(raw["outputs"], "Output", notes)
 
     # 2. malformed transaction
     if not outs:
@@ -74,6 +93,11 @@ def normalize(raw: dict) -> NormalizedTx:
                 "This PSBT is finalized and carries no wallet metadata (some "
                 "wallets remove it when finalizing). Export it before signing "
                 "or finalizing.")
+        if any(i.get("bad_derivations") for i in raw["inputs"]):
+            raise LeakCheckError(
+                "no_metadata",
+                "The inputs' wallet metadata doesn't match their scripts, so none "
+                "of it can be trusted and the truth comparison is impossible.")
         raise LeakCheckError(
             "no_metadata",
             "This PSBT contains no wallet metadata (no derivation paths), so "
@@ -101,6 +125,16 @@ def normalize(raw: dict) -> NormalizedTx:
                 "wallet built this transaction.")
         wallet_fp, source = qualifying[0], "internal-chain-output"
 
+    # 4b. an output shared between this wallet and another (e.g. multisig)
+    for n, o in enumerate(outs):
+        fps = {fp for fp, _ in o["derivations"]}
+        if wallet_fp in fps and len(fps) > 1:
+            raise LeakCheckError(
+                "multisig",
+                f"Output {n} is shared with another wallet (multisig or similar). "
+                "Multisig isn't supported yet: LeakCheck can't tell whether it is "
+                "your change.")
+
     # 6. input classes
     inputs = []
     for n, i in enumerate(ins):
@@ -118,6 +152,8 @@ def normalize(raw: dict) -> NormalizedTx:
         mine = [p for fp, p in o["derivations"] if fp == wallet_fp]
         if stype == "op_return":
             role = "op_return"
+        elif wallet_fp in out_bad.get(n, set()):
+            role = "unknown"          # your metadata here didn't fit: never guessed
         elif not mine:
             role = "external"
         else:
@@ -132,4 +168,5 @@ def normalize(raw: dict) -> NormalizedTx:
     return NormalizedTx(tx_version=raw["tx_version"], locktime=raw["locktime"],
                         psbt_version=raw.get("psbt_version"), inputs=inputs,
                         outputs=outputs, wallet_fp=wallet_fp, wallet_fp_source=source,
+                        metadata_notes=notes,
                         outputs_unverifiable=outputs_unverifiable)

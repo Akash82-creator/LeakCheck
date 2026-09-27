@@ -45,17 +45,25 @@ python -m pytest                       # full test suite
 CI (`.github/workflows/tests.yml`) runs the full suite on Python 3.11 and 3.12
 for every pull request and every push to `main`.
 
-**Accepted input:** unsigned, partially signed, or signed PSBTs (v0 or v2) as a
-base64 paste, hex, or a binary/base64 `.psbt` file. A finalized PSBT is accepted
-if it still carries wallet metadata (Sparrow keeps it); one whose metadata was
-removed is rejected with an explanation.
+**Accepted input:** unsigned, partially signed, or signed PSBTs as a base64
+paste, hex, or a binary/base64 `.psbt` file. PSBT v0 (BIP174) and v2 (BIP370)
+are both accepted, and their required fields are checked: unknown versions, a v2
+without its required globals, v2-only fields in a v0, and duplicate keys are
+rejected. A finalized PSBT is accepted if it still carries wallet metadata
+(Sparrow keeps it); one whose metadata was removed is rejected with an explanation.
+
+**Not supported** (rejected with a clear message, never analyzed as if normal):
+multisig inputs or outputs shared with another wallet, and Silent Payments
+outputs (BIP375). Other newer PSBT extensions (e.g. MuSig2 fields) are not
+interpreted; ownership they would imply is not assumed.
 
 ## Validation status
 
 | What | Status |
 |---|---|
 | Synthetic fixtures | **Tested** |
-| PSBTs built by Sparrow 2.2.3's own wallet code (drongo, from the signed release, run headlessly with a made-up coin history; [how](scripts/sparrow/README.md)) | **Tested**: P2WPKH, P2SH-P2WPKH, Taproot, PSBT v0 (v2 via drongo's converter), signed and finalized |
+| PSBTs built by **Sparrow 2.2.3**'s own wallet code (drongo, from the signed release, run headlessly with a made-up coin history; [how](scripts/sparrow/README.md)) | **Tested**: P2WPKH, P2SH-P2WPKH, Taproot, PSBT v0 (v2 via drongo's converter), signed and finalized |
+| PSBTs built by **Sparrow 2.5.5**'s own wallet code (the latest release on 2026-09-27; same method) | **Tested**: the same cases, exported through `getForExport()` as the GUI menus do (PSBT v0), plus Sparrow's native internal v2 |
 | A PSBT exported from the Sparrow GUI from a real signet wallet | **Still pending** |
 | Other wallets | **Not tested** |
 
@@ -77,7 +85,7 @@ result is compared to the truth:
 Worst-case observer: conflicting signals lower **confidence**, never **severity**.
 An input without metadata is never treated as evidence: it counts as possibly
 yours. One assumption remains: an output without your wallet's metadata is taken
-to be a payment. Wallets that mark all their own outputs (Sparrow 2.2.3's code does) make
+to be a payment. Wallets that mark all their own outputs (Sparrow 2.2.3's and 2.5.5's code do) make
 this safe; otherwise a *favorable* change finding could be wrong, and the report
 says so. The full rule set is in [`RULES.md`](RULES.md).
 
@@ -100,6 +108,18 @@ would run by default.
 | Local check (CLI or `serve`) | Nobody. The analysis makes no network requests; a test blocks outgoing socket connections and runs every Sparrow-built fixture through it. |
 | Broadcasting afterwards | Your wallet or node connection. Out of scope for LeakCheck. |
 | Hosted demo (`serve --demo`) | Refuses user PSBTs; only analyzes the bundled signet samples. |
+
+**Trust boundary.** LeakCheck treats the key-origin metadata in the PSBT (BIP32
+and Taproot derivations) as wallet-provided ground truth: it is meant for PSBTs
+your own wallet exported. It checks what it can without your xpub: every
+derivation's public key must actually produce the script it is attached to
+(P2PKH, P2WPKH, P2SH-P2WPKH, Taproot key path). Metadata that fails this check
+is ignored and the report says so; an output where your metadata failed is
+treated as unknown, never as change or as a payment. What it cannot check: that
+the fingerprint and path really belong to your wallet (that needs the xpub), and
+keys on scripts it can't rebuild (other P2SH/P2WSH scripts, Taproot script
+paths). BIP32 fingerprints are 4 bytes and can collide. It does not prove
+control of any key.
 
 - The server binds to `127.0.0.1` only and refuses requests for any other host name.
 - The page is a single HTML file with its CSS and JS inlined. A

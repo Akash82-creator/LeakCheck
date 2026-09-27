@@ -5,4 +5,4 @@ __pycache__/
 *.psbt
 !tests/fixtures/*.psbt
 !leakcheck/samples/*.psbt
-scripts/sparrow/work/
+scripts/sparrow/work*/
