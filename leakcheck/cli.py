@@ -5,6 +5,7 @@ listens on 127.0.0.1).
   leakcheck tx.psbt --html report.html standalone HTML report file
   leakcheck tx.psbt --json             findings as JSON
   leakcheck serve [--port N] [--demo]  local web UI
+  leakcheck open                       local web UI, opened in your browser
 """
 
 import json
@@ -51,10 +52,11 @@ def render(report, fp) -> str:
 
 
 USAGE = ("usage: leakcheck [FILE] [--html OUT | --json]\n"
-         "       leakcheck serve [--port N] [--demo]")
+         "       leakcheck serve [--port N] [--demo]\n"
+         "       leakcheck open")
 
 
-def _serve(args) -> int:
+def _serve(args, open_browser=False) -> int:
     from .server import DEFAULT_PORT, serve
     port, demo = DEFAULT_PORT, False
     it = iter(args)
@@ -70,7 +72,7 @@ def _serve(args) -> int:
         else:
             print(USAGE, file=sys.stderr)
             return 2
-    serve(port=port, demo=demo)
+    serve(port=port, demo=demo, open_browser=open_browser)
     return 0
 
 
@@ -78,6 +80,8 @@ def main(argv=None) -> int:
     argv = sys.argv[1:] if argv is None else list(argv)
     if argv[:1] == ["serve"]:
         return _serve(argv[1:])
+    if argv[:1] == ["open"]:
+        return _serve(argv[1:], open_browser=True)
     html_out, as_json = None, False
     if "--json" in argv:
         argv.remove("--json")

@@ -10,11 +10,26 @@ LeakCheck never calls a transaction "clean", "safe" or "private". With no warnin
 *"X of Y checks applied to this transaction; none found a leak; Z not
 applicable (see Details). This is not proof of privacy."*
 
-## Quick start
+## Quick start (no terminal)
+
+Install Python 3.11 or newer, download this repository, then double-click:
+
+| System | File |
+|---|---|
+| macOS | `LeakCheck-mac.command` (first time: right-click → Open, because macOS blocks downloaded scripts) |
+| Windows | `LeakCheck-windows.bat` |
+| Linux | `LeakCheck-linux.sh` (or run it from a terminal) |
+
+LeakCheck opens in your browser. Close the window that appeared to stop it.
+The first launch sets up a private Python environment in `.venv`, which
+downloads the dependencies once. After that, LeakCheck makes no network requests.
+
+## Quick start (terminal)
 
 ```sh
 pip install -r requirements.txt        # Python 3.11+
-python -m leakcheck serve              # local web UI on 127.0.0.1:8765
+python -m leakcheck open               # local web UI, opened in your browser
+python -m leakcheck serve              # local web UI on 127.0.0.1:8765, no browser
 python -m leakcheck tx.psbt            # text report (or pipe base64/hex on stdin)
 python -m leakcheck tx.psbt --html report.html   # standalone HTML report
 python -m leakcheck tx.psbt --json     # machine-readable findings

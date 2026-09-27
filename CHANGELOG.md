@@ -39,3 +39,15 @@ output (e.g. a self-receive) proves that output metadata exists.
   is shown under Evidence.
 - `serve --demo` implements the hosted-demo row of §3.
 - Demo PSBTs A/B are synthetic until real Sparrow signet PSBTs replace them.
+
+## 2026-09-27: double-click launchers and `leakcheck open`
+**Reason: requested addition beyond spec v4 (makes the private path the easy
+path for non-experts, per the Cypherpunk criteria). No rule changes.**
+- `leakcheck open` starts the local server and opens the page in the default
+  browser once the server is accepting connections. If port 8765 is busy, it
+  uses another free port. Still bound to 127.0.0.1 only.
+- `LeakCheck-mac.command`, `LeakCheck-windows.bat`, `LeakCheck-linux.sh`:
+  double-click launchers. The first run creates `.venv` and installs
+  requirements (the only network use); later runs start straight away.
+- The package-source URL test now allows exactly one URL: the local page's own
+  loopback address, which is needed to open the browser.
