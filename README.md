@@ -120,7 +120,8 @@ would run by default.
 
 ## Demo
 
-`leakcheck/samples/` holds two signet-style PSBTs (also on the web UI's sample buttons):
+`leakcheck/samples/` holds two signet PSBTs built by Sparrow 2.2.3's own code
+(also on the web UI's sample buttons):
 
 - **A:** three coins, one of them small (600 sats), paying a round 100,000 sats →
   linkage, small-input and change warnings.
@@ -129,10 +130,10 @@ would run by default.
 
 A is more linkable than B **under these checks**. Neither is "clean".
 
-> The bundled samples are synthetic (fixed test seeds, `scripts/make_samples.py`).
-> Sparrow-built equivalents with the same findings are in `tests/fixtures/`
-> (`sparrow223_p2wpkh_demo_{a,b}.psbt`). For the recording, export A and B from
-> the Sparrow GUI, then refresh the golden snapshots:
+> The samples come from Sparrow's code with a made-up coin history, not from the
+> Sparrow GUI with a real signet wallet ([details](scripts/sparrow/README.md)).
+> For the recording, export A and B from the Sparrow GUI, replace the two files,
+> then refresh the golden snapshots:
 > `UPDATE_GOLDEN=1 python -m pytest tests/test_report.py`.
 
 ## Non-goals

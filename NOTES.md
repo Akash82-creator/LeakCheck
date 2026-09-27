@@ -49,7 +49,8 @@ suite (`test_mutated_psbts_only_ever_raise_leakcheck_errors`).
 
 ## Demo samples
 
-`leakcheck/samples/demo_{a,b}.psbt` are still the synthetic stand-ins from
-`scripts/make_samples.py`. `tests/fixtures/sparrow223_p2wpkh_demo_{a,b}.psbt`
-tell the same story from Sparrow's code (same warnings). Replacing the samples
-is a pending decision.
+`leakcheck/samples/demo_{a,b}.psbt` are copies of
+`tests/fixtures/sparrow223_p2wpkh_demo_{a,b}.psbt`: built by Sparrow 2.2.3's
+code, not exported from the GUI. They replaced the earlier synthetic samples
+(same findings). Before recording, swap in GUI exports and refresh the golden
+snapshots.

@@ -91,3 +91,12 @@ a finalized PSBT can never pass precedence step 3" is **not true for Sparrow**,
 which keeps them. Behavior was already right (a finalized PSBT is rejected only
 when it has no metadata); the `finalized_no_metadata` message now says "some
 wallets remove it" instead of claiming all do.
+
+## 2026-09-27: demo samples now come from Sparrow 2.2.3's code
+**Reason: closer to the spec's "Sparrow signet PSBTs" than the synthetic
+stand-ins, with the same findings.** `leakcheck/samples/demo_{a,b}.psbt` are
+copies of `tests/fixtures/sparrow223_p2wpkh_demo_{a,b}.psbt`, and the golden
+snapshots were refreshed. Only transaction data changed (output order, change
+amount, nLockTime 200000). `scripts/make_samples.py` was removed: re-running it
+would have silently overwritten these samples with synthetic ones. They are
+still not GUI exports; see NOTES.md.
