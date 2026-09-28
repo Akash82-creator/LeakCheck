@@ -6,6 +6,7 @@
 |---|---|
 | Synthetic fixtures (hand-built dicts and embit-built PSBTs) | **Tested.** Every rule, precedence step, the verdict truth table, degraded mode. |
 | PSBTs built by **Sparrow 2.2.3's own code** (signed release, driven headlessly, made-up coin history; see `scripts/sparrow/README.md`) | **Tested.** 13 cases: P2WPKH, P2SH-P2WPKH, Taproot, PSBT v0 (and v2 made with drongo's `convertVersion(2)`; 2.2.3 itself emits v0), base64 and binary, a hardware-wallet model flag (no difference seen: all segwit v0 cases carried both UTXO copies), self-send, send-max, batch, signed, signed-and-finalized (`tests/test_sparrow.py`). |
+| PSBTs built by **Sparrow 2.5.5's own code** (the latest release on 2026-09-27; same method; `tests/test_sparrow255.py`) | **Tested.** The same 12 export cases, taken through `getForExport()` as every 2.5.5 export menu does (result: PSBT v0), plus 2 native internal-v2 PSBTs. Findings are identical to 2.2.3 in every case. |
 | A PSBT **exported from the Sparrow GUI** from a real signet wallet | **Pending.** Not done: no signet wallet or GUI was available in the build environment. |
 | Other wallets (Bitcoin Core, Electrum, hardware wallets, PayJoin receivers) | **Not tested.** |
 
@@ -41,6 +42,42 @@ findings should match `tests/test_sparrow.py`. Real fees and output order will d
   instead (nLockTime 0).
 - Sparrow's QR export leaves out `non_witness_utxo` for segwit wallets;
   `witness_utxo` is still there, so this doesn't affect LeakCheck.
+
+## Facts learned from Sparrow 2.5.5
+
+- Sparrow 2.4.0+ builds PSBTv2 internally, but every export path (Copy as
+  Base64/Hex, Save PSBT, QR) calls `getForExport()`, which converts to **v0
+  unless Silent Payments are involved** (then it stays v2). A GUI export of a
+  normal transaction should therefore be v0; LeakCheck accepts both.
+- A payment to one of the wallet's own addresses gets a derivation only because
+  the GUI turns it into a `WalletNodePayment` when it recognises the address
+  (`PaymentController`). A plain `Payment` to an own address gets none: an
+  early version of our driver did that and LeakCheck (correctly, per its
+  assumption) saw a payment to someone else.
+- 2.5.5's Silent Payments outputs are rejected by LeakCheck as unsupported.
+
+## embit
+
+`embit==0.8.0` is the latest release **on PyPI**. The embit repository also has
+a `v0.8.1` tag (not published to PyPI). Both still contain the two memory bugs
+LeakCheck guards against (the Taproot leaf-hash count and the PSBTv2
+input/output counts): on plain 0.8.1, each crafted PSBT hit MemoryError under a
+0.8 GB cap. LeakCheck's full suite passes on 0.8.1 installed from that tag. It
+stays pinned to 0.8.0: 0.8.1 fixes neither bug, and installing from a git tag
+is less reproducible.
+
+## PSBTv2 count limit
+
+Counts above 20,000 inputs or outputs are refused before embit allocates
+(a standard transaction holds at most ~2,439 inputs or ~11,111 outputs).
+Measured worst case for a crafted PSBT declaring exactly 20,000 inputs:
+275 ms and 25 MB before it is rejected (5,000: 71 ms, 6 MB).
+
+## Dependencies
+
+`requirements.txt` pins the exact versions the suite was run against
+(embit, fastapi, starlette, uvicorn, pytest, httpx); CI and the launchers
+install those. `pyproject.toml` keeps ranges for `pip install .`, except embit.
 
 ## Robustness (fuzzing)
 

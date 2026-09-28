@@ -27,8 +27,8 @@ def test_full_analysis_makes_no_network_calls(monkeypatch):
     from leakcheck import server
     from leakcheck.report import check, render_fragment
     client = TestClient(server.create_app(), base_url="http" + "://127.0.0.1")
-    fixtures = sorted((PKG.parent / "tests" / "fixtures").glob("sparrow223_*.psbt"))
-    assert len(fixtures) == 13
+    fixtures = sorted((PKG.parent / "tests" / "fixtures").glob("sparrow*_*.psbt"))
+    assert len(fixtures) == 27          # Sparrow 2.2.3 and 2.5.5
     for f in fixtures:
         render_fragment(*check(f.read_bytes()))
         assert client.post("/api/analyze", content=f.read_bytes()).status_code == 200

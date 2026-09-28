@@ -22,9 +22,10 @@ CARDS = {
         "another party, as in PayJoin, that part of the inference is false. Links "
         "among your own inputs are unaffected: see common-input-linkage.",
         "Nothing to change.",
-        "A different fingerprint shows these inputs belong to another wallet, "
-        "not who owns it: it could be another wallet you control. This proves "
-        "nothing about links among your own inputs, or outside this transaction."),
+        "A different BIP32 master fingerprint is evidence of a different key "
+        "origin (another wallet), not proof: 4-byte fingerprints can collide, "
+        "and it could be another wallet you control. This proves nothing about "
+        "links among your own inputs, or outside this transaction."),
     ("input-address-reuse", "warning"): (
         "An observer learns this address was funded more than once and links "
         "the coins it received.",

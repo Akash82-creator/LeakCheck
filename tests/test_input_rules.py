@@ -107,7 +107,7 @@ def test_foreign_input_is_evidence_of_another_wallet_not_proof_of_payjoin():
     f = run([inp(50_000), inp(60_000), inp(40_000, der="foreign")],
             [out(130_000), out(19_000, role="change")]).by_rule("foreign-input")
     assert "fingerprint" in f.observation
-    assert "another wallet you control" in f.limits
+    assert "another wallet you control" in f.limits and "collide" in f.limits
 
 
 def test_changeless_does_not_claim_no_change_when_an_owned_output_is_unknown():

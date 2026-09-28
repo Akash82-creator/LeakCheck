@@ -1,11 +1,18 @@
 #!/usr/bin/env bash
-# Regenerates tests/fixtures/sparrow223_*.psbt with Sparrow 2.2.3's own code.
+# Regenerates tests/fixtures/sparrow<version>_*.psbt with that Sparrow release's
+# own code. Usage: generate.sh [2.2.3|2.5.5]   (default 2.2.3)
 # See scripts/sparrow/README.md for what this does and does not prove.
 # Needs: curl, gpg, a JDK 21 (javac + java launcher), python3 with embit.
 set -euo pipefail
 cd "$(dirname "$0")"
-V=2.2.3
-W=work
+V=${1:-2.2.3}
+case "$V" in
+  2.2.3) DRIVER=SparrowPsbt ;;
+  2.5.5) DRIVER=SparrowPsbt255 ;;
+  *) echo "unsupported version $V (2.2.3 or 2.5.5)"; exit 2 ;;
+esac
+PREFIX="sparrow$(echo "$V" | tr -d .)_"
+W="work-$V"
 mkdir -p "$W" && cd "$W"
 R="https://github.com/sparrowwallet/sparrow/releases/download/$V"
 [ -f sparrow.tgz ] || curl -sSL -o sparrow.tgz "$R/sparrowwallet-$V-x86_64.tar.gz"
@@ -32,17 +39,19 @@ rm -rf stubs && jimage extract --dir stubs --include 'regex:/com.sparrowwallet.d
 python3 - <<'PY'
 import pathlib
 for p in pathlib.Path("stubs").rglob("*.class"):
-    b = bytearray(p.read_bytes()); b[6:8] = b"\x00\x41"; p.write_bytes(b)
+    b = bytearray(p.read_bytes()); b[6:8] = b"\x00\x41"; p.write_bytes(b)   # -> Java 21
 PY
-javac -d classes -cp stubs/com.sparrowwallet.drongo ../SparrowPsbt.java
-"$RT/bin/java" --add-modules com.sparrowwallet.drongo -cp classes SparrowPsbt > out.tsv
+rm -rf classes && javac -d classes -cp stubs/com.sparrowwallet.drongo "../$DRIVER.java"
+# Sparrow's own debug logging goes to stdout too: keep only "name<TAB>data" lines.
+"$RT/bin/java" --add-modules com.sparrowwallet.drongo -cp classes "$DRIVER" 2>/dev/null \
+  | grep -P '^[a-z0-9_]+\t' > out.tsv
 
-python3 - <<'PY'
-import pathlib
+PREFIX="$PREFIX" python3 - <<'PY'
+import os, pathlib
 fx = pathlib.Path("../../../tests/fixtures")
 for line in open("out.tsv"):
     name, data = line.rstrip("\n").split("\t")
-    path = fx / f"sparrow223_{name}.psbt"
+    path = fx / f"{os.environ['PREFIX']}{name}.psbt"
     if name.endswith("_file"):
         path.write_bytes(bytes.fromhex(data))
     else:

@@ -134,3 +134,39 @@ without your wallet's metadata is treated as a payment.
 Tests: two tests that used a fake object or a mocked hash check now use real
 PSBTv2 files edited at the key/value level (`tests/psbt_edit.py`). The
 no-network test now covers every Sparrow-built fixture and the server path.
+
+## 2026-09-27: standards, metadata trust, Sparrow 2.5.5
+**Reason: an external review of `main`, with each claim re-checked here first.**
+
+Fixed:
+- **PSBT validity (BIP174/BIP370).** Previously accepted, now rejected: a v2
+  without `PSBT_GLOBAL_TX_VERSION` (it was silently defaulted to 2), unknown
+  versions (1, 3, …), v2-only globals in a v0 or without any version, wrong-width
+  v2 version/lock time fields, v2 inputs without txid or output index, and
+  duplicate keys in input/output maps. The v2 nLockTime now follows BIP370
+  (required per-input lock times win over the fallback).
+- **Wallet metadata was trusted without any check.** Each derivation's public
+  key must now produce its script where that can be checked (P2PKH, P2WPKH,
+  P2SH-P2WPKH, Taproot key path). Failing metadata is ignored with a notice; an
+  output where your metadata failed becomes `unknown`. A spoofed "change"
+  derivation on someone else's output no longer makes it your change.
+- **Outputs shared with another wallet** (your fingerprint plus another) were
+  classed as your change; they now stop the analysis as unsupported multisig,
+  like shared inputs.
+- **Silent Payments outputs** (BIP375) are rejected as unsupported: they may
+  have no script yet, and SP change carries no BIP32 derivation.
+- The page refuses files over 1 MB before reading them.
+- `requirements.txt` pins exact tested versions.
+- Wording: a different fingerprint is evidence of another key origin, not
+  proof (4-byte fingerprints can collide).
+
+Corrected claim: "embit 0.8.0 is the latest release" was true only of PyPI; a
+`v0.8.1` tag exists on GitHub. Tested: it still has both memory bugs; LeakCheck
+passes its suite on it; the pin stays at 0.8.0 (see NOTES.md).
+
+Checked and found accurate (no change): GitHub Actions ran and passed on
+`main` at `6fed292` (run #6, push event); the review had found no statuses,
+but Actions reports check runs, not commit statuses.
+
+Added: fixtures and tests from Sparrow 2.5.5's code (the latest release). Its
+exports are PSBT v0; its native v2 also parses; findings match 2.2.3.

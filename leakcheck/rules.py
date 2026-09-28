@@ -317,7 +317,7 @@ def analyze(ntx: NormalizedTx) -> Report:
                  small_input(ntx), changeless(ntx)]
     findings += change_findings(ntx)
 
-    notices = []
+    notices = list(ntx.metadata_notes)
     if ntx.outputs_unverifiable:
         notices.append(cards.DEGRADED_NOTICE)
     if ntx.wallet_fp_source == "internal-chain-output":

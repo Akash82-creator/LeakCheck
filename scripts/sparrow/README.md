@@ -1,5 +1,10 @@
 # Sparrow-built test PSBTs
 
+Two sets: `sparrow223_*` (Sparrow 2.2.3, `SparrowPsbt.java`) and `sparrow255_*`
+(Sparrow 2.5.5, the latest release on 2026-09-27, `SparrowPsbt255.java`, which
+also exports through `getForExport()` like the 2.5.5 menus).
+`./generate.sh 2.2.3` or `./generate.sh 2.5.5` rebuilds a set.
+
 `generate.sh` recreates `tests/fixtures/sparrow223_*.psbt` using **Sparrow
 Wallet 2.2.3's own code**. This page says exactly what that proves and what it
 doesn't.

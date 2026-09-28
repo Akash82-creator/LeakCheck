@@ -2,6 +2,7 @@
   "use strict";
   var result = document.getElementById("result");
   var demo = document.body.getAttribute("data-demo") === "1";
+  var MAX_BYTES = 1000000;
 
   function show(html) {
     result.innerHTML = html;
@@ -53,6 +54,11 @@
 
   function sendFile(f) {
     if (!f) { return; }
+    if (f.size > MAX_BYTES) {
+      /* Refuse before reading: the server would reject it anyway (1 MB). */
+      show('<p class="error">That file is far larger than any PSBT, so it was not read.</p>');
+      return;
+    }
     var reader = new FileReader();
     reader.onload = function () { request("POST", "api/analyze", reader.result); };
     reader.readAsArrayBuffer(f);

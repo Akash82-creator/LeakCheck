@@ -1,5 +1,7 @@
+# Exact versions the test suite was run against (CI and the launchers install these).
 embit==0.8.0
-fastapi>=0.110
-uvicorn>=0.29
-pytest>=8
-httpx>=0.27
+fastapi==0.141.1
+starlette==1.7.0
+uvicorn==0.54.0
+pytest==9.1.1
+httpx==0.28.1

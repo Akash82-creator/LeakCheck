@@ -144,3 +144,10 @@ def test_chunked_psbt_is_reassembled():
     status, pulled, body = _asgi_post(server.create_app(), len(parts), chunk=parts)
     assert status == 200 and pulled == len(parts)
     assert b'data-rule="common-input-linkage"' in body
+
+
+def test_page_refuses_oversized_files_before_reading_them():
+    """The browser-side check must match the server's limit."""
+    js = server._static("app.js")
+    assert f"var MAX_BYTES = {server.MAX_BODY};" in js
+    assert js.index("f.size > MAX_BYTES") < js.index("readAsArrayBuffer")
